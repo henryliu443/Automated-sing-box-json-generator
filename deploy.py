@@ -10,11 +10,13 @@ def gen_pwd(length=20):
     chars = string.ascii_letters + string.digits
     return "".join(secrets.choice(chars) for _ in range(length))
 
+
 def run_cmd(cmd):
     try:
         return subprocess.check_output(cmd, shell=True).decode().strip()
     except:
         return ""
+
 
 print("\n" + "🚀" * 10)
 print("Sing-box & Watchdog 终极全自动无痕部署 (自动清理冗余任务)")
@@ -27,8 +29,6 @@ T_U = run_cmd("sing-box generate uuid")
 r_raw = run_cmd("sing-box generate reality-keypair")
 R_PRV = re.search(r"PrivateKey: (.*)", r_raw).group(1) if r_raw else ""
 R_PUB = re.search(r"PublicKey: (.*)", r_raw).group(1) if r_raw else ""
-# 修正：A_U 为用户名，A_P 为密码
-A_U = "user" 
 A_P, T_P, H_P, H_O = gen_pwd(), gen_pwd(), gen_pwd(), gen_pwd()
 
 # 3. 组装服务器 config.json
@@ -41,11 +41,17 @@ sv_cfg = {
             "listen": "::",
             "listen_port": 23244,
             "sniff": True,
-            "users": [{"name": A_U, "password": A_P}], # 保持 A_P 逻辑
+            "users": [{"name": "user", "password": A_P}],
             "padding_scheme": [
-                "stop=8", "0=30-30", "1=100-400",
+                "stop=8",
+                "0=30-30",
+                "1=100-400",
                 "2=400-500,c,500-1000,c,500-1000,c,500-1000,c,500-1000",
-                "3=9-9,500-1000", "4=500-1000", "5=500-1000", "6=500-1000", "7=500-1000"
+                "3=9-9,500-1000",
+                "4=500-1000",
+                "5=500-1000",
+                "6=500-1000",
+                "7=500-1000"
             ],
             "tls": {
                 "enabled": True,
@@ -117,7 +123,7 @@ cl_cfg = {
         ],
         "rules": [
             {"outbound": "any", "server": "local"},
-            {"rule_set": "cn", "server": "local"} # 修正 tag 匹配
+            {"rule_set": "cn", "server": "local"} # 修正：变量名对齐
         ],
         "final": "dns-remote"
     },
@@ -153,17 +159,17 @@ cl_cfg = {
             "tag": "anytls-out",
             "server": S_IP,
             "server_port": 23244,
-            "user": A_U, # 修正：anytls 使用 user 字段而非 password
-            "password": A_P,
             "tls": {
                 "enabled": True,
                 "server_name": "react.dev",
                 "utls": {"enabled": True, "fingerprint": "chrome"},
                 "reality": {
+                    "enabled": True,
                     "public_key": R_PUB,
                     "short_id": "0123456789abcdef"
                 }
-            }
+            },
+            "password": A_P
         },
         {
             "type": "tuic",
@@ -231,8 +237,9 @@ cl_cfg = {
     }
 }
 
-# 5. 集成 Watchdog 
+# 5. 集成 Watchdog 并写入文件
 wd_content = r"""#!/bin/bash
+# (此处省略脚本内具体注释以精简)
 LOCK_FILE="/var/run/warp_watchdog.lock"
 FAIL_COUNT_FILE="/var/run/warp_fail_count"
 LOG_FILE="/var/log/warp_monitor.log"
@@ -243,21 +250,27 @@ CHECK_URL="https://www.cloudflare.com/cdn-cgi/trace"
 exec 9>"$LOCK_FILE"
 flock -n 9 || exit 0
 
-check_native_net() { ping -c 2 -W 2 8.8.8.8 > /dev/null 2>&1; }
-check_warp_tunnel() { curl -s --proxy "$WARP_PROXY" --max-time 5 "$CHECK_URL" | grep -q "colo="; }
+check_native_net() {
+    ping -c 2 -W 2 8.8.8.8 > /dev/null 2>&1
+}
+check_warp_tunnel() {
+    curl -s --proxy "$WARP_PROXY" --max-time 5 "$CHECK_URL" | grep -q "colo="
+}
 
 if ! check_native_net; then
-    echo "$(date): [静默] 本地网络不可用，跳过。" >> "$LOG_FILE"
+    echo "$(date): [静默] 网络不可用，跳过。" >> "$LOG_FILE"
     exit 0
 fi
 
 if check_warp_tunnel; then
-    [ -f "$FAIL_COUNT_FILE" ] && rm -f "$FAIL_COUNT_FILE"
+    if [ -f "$FAIL_COUNT_FILE" ]; then rm -f "$FAIL_COUNT_FILE"; fi
     exit 0
 else
-    CURRENT_FAIL=$(cat "$FAIL_COUNT_FILE" 2>/dev/null || echo 0)
+    CURRENT_FAIL=0
+    if [ -f "$FAIL_COUNT_FILE" ]; then CURRENT_FAIL=$(cat "$FAIL_COUNT_FILE"); fi
     NEXT_FAIL=$((CURRENT_FAIL + 1))
     echo "$NEXT_FAIL" > "$FAIL_COUNT_FILE"
+
     if [ "$NEXT_FAIL" -ge "$MAX_RETRIES" ]; then
         echo "$(date): 执行修复..." >> "$LOG_FILE"
         warp-cli disconnect > /dev/null 2>&1
@@ -277,13 +290,15 @@ with open("/root/warp_lazy_watchdog.sh", "w") as f:
     f.write(wd_content)
 os.chmod("/root/warp_lazy_watchdog.sh", 0o755)
 
-print("正在清理旧任务并重新挂载 Watchdog...")
+# 清理并挂载任务
 clean_cron = '(crontab -l 2>/dev/null | grep -v "warp_lazy_watchdog.sh"; echo "* * * * * /root/warp_lazy_watchdog.sh") | crontab -'
 subprocess.run(clean_cron, shell=True)
+
 subprocess.run(["systemctl", "restart", "sing-box"])
 
 # 6. 最终输出
 print("\n✅ 部署成功！")
+print("🛠️ Crontab 已自动去重并挂载完成。")
 print("\n" + "="*20 + " 请全选复制客户端 JSON " + "="*20)
 print(json.dumps(cl_cfg, indent=2))
 print("="*60)
