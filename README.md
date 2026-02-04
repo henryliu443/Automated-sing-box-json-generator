@@ -18,11 +18,11 @@
 ---
 
 ### 📥 一键部署命令
+在你的 VPS 终端执行以下命令：
 
-在你的 VPS 终端执行以下命令
-、、、
-curl -Ls https://raw.githubusercontent.com/henryliu443/Automated-sing-box-json-generator/refs/heads/main/deploy.py > deploy.py && python3 deploy.py && rm deploy.py
-、、、
+```bash
+curl -Ls [https://raw.githubusercontent.com/henryliu443/Automated-sing-box-json-generator/refs/heads/main/deploy.py](https://raw.githubusercontent.com/henryliu443/Automated-sing-box-json-generator/refs/heads/main/deploy.py) > deploy.py && python3 deploy.py && rm deploy.py
+```
 ---
 
 ### 🛠️ 部署逻辑说明
@@ -41,5 +41,5 @@ curl -Ls https://raw.githubusercontent.com/henryliu443/Automated-sing-box-json-g
 
 ### ⚠️ 安全提醒
 
-* **Public 仓库安全**：由于脚本不硬编码密码，即使存放在公开仓库也是安全的。
+* **Public 仓库安全**：脚本不硬编码密码
 * **即时保存**：由于采用“无痕模式”，GUI JSON 仅在部署结束时显示一次，请务必及时保存。
