@@ -200,121 +200,42 @@ cl_cfg = {
             }
         },
       {"type": "direct", "tag": "direct"}
-  ],
+    ],
     "route": {
-        "rules": [
-            {
-                "protocol": "dns",
-                "action": "hijack-dns"
-            },
-            {
-                "rule_set": [
-                    "geosite-apple",
-                    "geosite-icloud",
-                    "geosite-wechat",
-                    "geosite-alipay",
-                    "geosite-xiaohongshu",
-                    "geosite-meituan",
-                    "geosite-amap",
-                    "geosite-douyin",
-                    "geosite-cn",
-                    "geosite-cdn-cn",
-                    "geosite-banking-hk"
-                ],
-                "action": "route",
-                "outbound": "direct"
-            },
-            {
-                "rule_set": [
-                    "geoip-cn",
-                    "geoip-hk"
-                ],
-                "action": "route",
-                "outbound": "direct"
-            }
-        ],
-        "rule_set": [
-            {
-                "type": "remote",
-                "tag": "geosite-cn",
-                "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/cn.srs",
-                "format": "binary"
-            },
-            {
-                "type": "remote",
-                "tag": "geoip-cn",
-                "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geoip/cn.srs",
-                "format": "binary"
-            },
-            {
-                "type": "remote",
-                "tag": "geosite-meituan",
-                "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/meituan.srs",
-                "format": "binary"
-            },
-            {
-                "type": "remote",
-                "tag": "geosite-amap",
-                "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/amap.srs",
-                "format": "binary"
-            },
-            {
-                "type": "remote",
-                "tag": "geosite-douyin",
-                "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/douyin.srs",
-                "format": "binary"
-            },
-            {
-                "type": "remote",
-                "tag": "geosite-alipay",
-                "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/alipay.srs",
-                "format": "binary"
-            },
-            {
-                "type": "remote",
-                "tag": "geosite-wechat",
-                "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/wechat.srs",
-                "format": "binary"
-            },
-            {
-                "type": "remote",
-                "tag": "geosite-xiaohongshu",
-                "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/xiaohongshu.srs",
-                "format": "binary"
-            },
-            {
-                "type": "remote",
-                "tag": "geosite-cdn-cn",
-                "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/cn-cdn.srs",
-                "format": "binary"
-            },
-            {
-                "type": "remote",
-                "tag": "geosite-apple",
-                "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/apple.srs",
-                "format": "binary"
-            },
-            {
-                "type": "remote",
-                "tag": "geosite-icloud",
-                "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/icloud.srs",
-                "format": "binary"
-            },
-            {
-                "type": "remote",
-                "tag": "geosite-banking-hk",
-                "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/banking-hk.srs",
-                "format": "binary"
-            },
-            {
-                "type": "remote",
-                "tag": "geoip-hk",
-                "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geoip/hk.srs",
-                "format": "binary"
-            }
-        ],
-        "final": "proxy-best",
-        "auto_detect_interface": True
+      "rules": [
+        { "protocol": "dns", "action": "hijack-dns" },
+        {
+          "rule_set": [
+            "geosite-cn", "geosite-apple", "geosite-icloud", "geosite-wechat", 
+            "geosite-alipay", "geosite-xiaohongshu", "geosite-meituan", 
+            "geosite-amap", "geosite-douyin", "geosite-cdn-cn", "geosite-banking-hk"
+          ],
+          "action": "route",
+          "outbound": "direct"
+        },
+        {
+          "rule_set": ["geoip-cn", "geoip-hk"],
+          "action": "route",
+          "outbound": "direct"
+        }
+      ],
+      "rule_set": [
+        { "tag": "geosite-cn", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/cn.srs" },
+        { "tag": "geoip-cn", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/cn.srs" },
+        { "tag": "geosite-alipay", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/alipay.srs" },
+        { "tag": "geosite-wechat", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/wechat.srs" },
+        { "tag": "geosite-xiaohongshu", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/xiaohongshu.srs" },
+        { "tag": "geosite-cdn-cn", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/cn-cdn.srs" },
+        { "tag": "geosite-apple", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/apple.srs" },
+        { "tag": "geosite-icloud", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/icloud.srs" },
+        { "tag": "geosite-meituan", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/meituan.srs" },
+        { "tag": "geosite-amap", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/amap.srs" },
+        { "tag": "geosite-douyin", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/douyin.srs" },
+        { "tag": "geosite-banking-hk", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/banking-hk.srs" },
+        { "tag": "geoip-hk", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/hk.srs" }
+      ],
+      "final": "proxy-best",
+      "auto_detect_interface": True
     }
 }
 # 5. 集成 Watchdog 并写入文件
