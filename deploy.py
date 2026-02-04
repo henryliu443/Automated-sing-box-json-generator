@@ -229,7 +229,7 @@ cl_cfg = {
             { "tag": "jd", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/jd.srs", "download_detour": "proxy-best" },
             { "tag": "bilibili", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/bilibili.srs", "download_detour": "proxy-best" },
             { "tag": "chaoxing", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/chaoxing.srs", "download_detour": "proxy-best" },
-            { "tag": "banking-hk", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/banking_hk.srs", "download_detour": "proxy-best" }
+            { "tag": "banking-hk", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/banking_hk.srs", "download_detour": "proxy-best" },
             { "tag": "geoip-hk", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/hk.srs", "download_detour": "proxy-best" }
         ],
         "final": "proxy-best",
