@@ -1,9 +1,7 @@
 # Automated-sing-box-json-generator
-没问题！为你准备好了这份 **GitHub README.md** 模板。它专为你的“无痕、自动化、防污染”需求设计，包含了你最核心的一键脚本命令。
 
-你可以直接在 GitHub 仓库里创建一个 `README.md`，然后把下面的内容粘贴进去。
-
----
+由于本人头昏眼花看json看得好累，和ai一起vibecoding一个一键脚本
+目前只提供ip更改 其他都是default 主要是为了方便我自己用
 
 # 🚀 Sing-box & WARP Watchdog 一键无痕部署
 
@@ -48,7 +46,3 @@ curl -Ls https://raw.githubusercontent.com/你的用户名/仓库名/main/deploy
 
 * **Public 仓库安全**：由于脚本不硬编码密码，即使存放在公开仓库也是安全的。
 * **即时保存**：由于采用“无痕模式”，GUI JSON 仅在部署结束时显示一次，请务必及时保存。
-
----
-
-**还需要我帮你把那个 `deploy.py` 里的 `padding_scheme` 备注写得更详细一点，方便你以后维护吗？**
