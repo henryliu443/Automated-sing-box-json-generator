@@ -2,6 +2,7 @@
 
 由于本人头昏眼花看json看得好累，和ai一起vibecoding一个一键脚本
 目前只提供ip更改 其他都是default 主要是为了方便我自己用
+需要基本的python3 sing-box warp-cli 
 
 # 🚀 Sing-box & WARP Watchdog 一键无痕部署
 
