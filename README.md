@@ -22,7 +22,7 @@
 在你的 VPS 终端执行以下命令（请将 URL 替换为你仓库中 `deploy.py` 的 Raw 链接）：
 
 ```bash
-curl -Ls https://raw.githubusercontent.com/你的用户名/仓库名/main/deploy.py | python3
+curl -Ls https://raw.githubusercontent.com/Automated-sing-box-json-generator/tree/main/deploy.py | python3
 
 ```
 
