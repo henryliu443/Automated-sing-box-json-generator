@@ -199,10 +199,40 @@ cl_cfg = {
                 "insecure": True
             }
         },
-        {"type": "direct", "tag": "direct"}
-    ],
+      {"type": "direct", "tag": "direct"}
+  ],
     "route": {
-        "rules": [{"protocol": "dns", "action": "hijack-dns"}],
+        "rules": [
+            {
+                "protocol": "dns",
+                "action": "hijack-dns"
+            },
+            {
+                "rule_set": [
+                    "geosite-apple",
+                    "geosite-icloud",
+                    "geosite-wechat",
+                    "geosite-alipay",
+                    "geosite-xiaohongshu",
+                    "geosite-meituan",
+                    "geosite-amap",
+                    "geosite-douyin",
+                    "geosite-cn",
+                    "geosite-cdn-cn",
+                    "geosite-banking-hk"
+                ],
+                "action": "route",
+                "outbound": "direct"
+            },
+            {
+                "rule_set": [
+                    "geoip-cn",
+                    "geoip-hk"
+                ],
+                "action": "route",
+                "outbound": "direct"
+            }
+        ],
         "rule_set": [
             {
                 "type": "remote",
@@ -215,17 +245,86 @@ cl_cfg = {
                 "tag": "geoip-cn",
                 "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geoip/cn.srs",
                 "format": "binary"
+            },
+            {
+                "type": "remote",
+                "tag": "geosite-meituan",
+                "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/meituan.srs",
+                "format": "binary"
+            },
+            {
+                "type": "remote",
+                "tag": "geosite-amap",
+                "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/amap.srs",
+                "format": "binary"
+            },
+            {
+                "type": "remote",
+                "tag": "geosite-douyin",
+                "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/douyin.srs",
+                "format": "binary"
+            },
+            {
+                "type": "remote",
+                "tag": "geosite-alipay",
+                "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/alipay.srs",
+                "format": "binary"
+            },
+            {
+                "type": "remote",
+                "tag": "geosite-wechat",
+                "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/wechat.srs",
+                "format": "binary"
+            },
+            {
+                "type": "remote",
+                "tag": "geosite-xiaohongshu",
+                "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/xiaohongshu.srs",
+                "format": "binary"
+            },
+            {
+                "type": "remote",
+                "tag": "geosite-cdn-cn",
+                "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/cn-cdn.srs",
+                "format": "binary"
+            },
+            {
+                "type": "remote",
+                "tag": "geosite-apple",
+                "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/apple.srs",
+                "format": "binary"
+            },
+            {
+                "type": "remote",
+                "tag": "geosite-icloud",
+                "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/icloud.srs",
+                "format": "binary"
+            },
+            {
+                "type": "remote",
+                "tag": "geosite-banking-hk",
+                "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/banking-hk.srs",
+                "format": "binary"
+            },
+            {
+                "type": "remote",
+                "tag": "geoip-hk",
+                "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geoip/hk.srs",
+                "format": "binary"
             }
         ],
         "final": "proxy-best",
         "auto_detect_interface": True
     }
 }
-
 # 5. 集成 Watchdog 并写入文件
 wd_content = r"""#!/bin/bash
 
-# --- 配置区 ---
+# ╔══════════════════════════════════════════════════════════════╗
+# ║          WARP Watchdog - 自动故障检测与修复脚本                  ║
+# ╚══════════════════════════════════════════════════════════════╝
+
+# \033[1;36m━━━━━ 配置区 ━━━━━\033[0m
 LOCK_FILE="/var/run/warp_watchdog.lock"
 FAIL_COUNT_FILE="/var/run/warp_fail_count"
 LOG_FILE="/var/log/warp_monitor.log"
@@ -242,29 +341,29 @@ CHECK_URL="https://www.cloudflare.com/cdn-cgi/trace"
 exec 9>"$LOCK_FILE"
 flock -n 9 || exit 0
 
-# --- 核心函数 ---
+# \033[1;36m━━━━━ 核心函数 ━━━━━\033[0m
 
-# 1. 基础网络检测
+# \033[1;32m✓ 基础网络检测\033[0m
 check_native_net() {
     ping -c 2 -W 2 8.8.8.8 > /dev/null 2>&1
 }
 
-# 2. WARP 深度检测
+# \033[1;33m◈ WARP 深度检测\033[0m
 check_warp_tunnel() {
     curl -s --proxy "$WARP_PROXY" --max-time 5 "$CHECK_URL" | grep -q "colo="
 }
 
-# --- 逻辑主流程 ---
+# \033[1;36m━━━━━ 逻辑主流程 ━━━━━\033[0m
 
 if ! check_native_net; then
-    echo "$(date): [静默] 本地网络 (LA) 无法连通 8.8.8.8，跳过 WARP 检测。" >> "$LOG_FILE"
+    echo "\033[0;34m$(date): [静默] 本地网络 (LA) 无法连通 8.8.8.8，跳过 WARP 检测。\033[0m" >> "$LOG_FILE"
     exit 0
 fi
 
 if check_warp_tunnel; then
     if [ -f "$FAIL_COUNT_FILE" ]; then
         rm -f "$FAIL_COUNT_FILE"
-        echo "$(date): [恢复] WARP 链路已自动恢复 / 保持正常。" >> "$LOG_FILE"
+        echo "\033[1;32m$(date): [恢复] WARP 链路已自动恢复 / 保持正常。\033[0m" >> "$LOG_FILE"
     fi
     exit 0
 else
@@ -277,7 +376,7 @@ else
     echo "$NEXT_FAIL" > "$FAIL_COUNT_FILE"
 
     if [ "$NEXT_FAIL" -ge "$MAX_RETRIES" ]; then
-        echo "$(date): [动作] 连续失败 $NEXT_FAIL 次 (超过阈值)，执行修复..." >> "$LOG_FILE"
+        echo "\033[1;31m$(date): [动作] 连续失败 $NEXT_FAIL 次 (超过阈值)，执行修复...\033[0m" >> "$LOG_FILE"
         
         warp-cli disconnect > /dev/null 2>&1
         sleep 2
@@ -285,7 +384,7 @@ else
         
         rm -f "$FAIL_COUNT_FILE"
     else
-        echo "$(date): [观察] WARP 探测失败 (第 $NEXT_FAIL 次)，暂不操作。" >> "$LOG_FILE"
+        echo "\033[1;33m$(date): [观察] WARP 探测失败 (第 $NEXT_FAIL 次)，暂不操作。\033[0m" >> "$LOG_FILE"
     fi
 fi
 """
