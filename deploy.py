@@ -10,13 +10,11 @@ def gen_pwd(length=20):
     chars = string.ascii_letters + string.digits
     return "".join(secrets.choice(chars) for _ in range(length))
 
-
 def run_cmd(cmd):
     try:
         return subprocess.check_output(cmd, shell=True).decode().strip()
     except:
         return ""
-
 
 print("\n" + "🚀" * 10)
 print("Sing-box & Watchdog 终极全自动无痕部署 (自动清理冗余任务)")
@@ -29,6 +27,8 @@ T_U = run_cmd("sing-box generate uuid")
 r_raw = run_cmd("sing-box generate reality-keypair")
 R_PRV = re.search(r"PrivateKey: (.*)", r_raw).group(1) if r_raw else ""
 R_PUB = re.search(r"PublicKey: (.*)", r_raw).group(1) if r_raw else ""
+# 修正：A_U 为用户名，A_P 为密码
+A_U = "user" 
 A_P, T_P, H_P, H_O = gen_pwd(), gen_pwd(), gen_pwd(), gen_pwd()
 
 # 3. 组装服务器 config.json
@@ -41,17 +41,11 @@ sv_cfg = {
             "listen": "::",
             "listen_port": 23244,
             "sniff": True,
-            "users": [{"name": "user", "password": A_P}],
+            "users": [{"name": A_U, "password": A_P}], # 保持 A_P 逻辑
             "padding_scheme": [
-                "stop=8",
-                "0=30-30",
-                "1=100-400",
+                "stop=8", "0=30-30", "1=100-400",
                 "2=400-500,c,500-1000,c,500-1000,c,500-1000,c,500-1000",
-                "3=9-9,500-1000",
-                "4=500-1000",
-                "5=500-1000",
-                "6=500-1000",
-                "7=500-1000"
+                "3=9-9,500-1000", "4=500-1000", "5=500-1000", "6=500-1000", "7=500-1000"
             ],
             "tls": {
                 "enabled": True,
@@ -123,7 +117,7 @@ cl_cfg = {
         ],
         "rules": [
             {"outbound": "any", "server": "local"},
-            {"rule_set": "geosite-cn", "server": "local"}
+            {"rule_set": "cn", "server": "local"} # 修正 tag 匹配
         ],
         "final": "dns-remote"
     },
@@ -159,17 +153,17 @@ cl_cfg = {
             "tag": "anytls-out",
             "server": S_IP,
             "server_port": 23244,
+            "user": A_U, # 修正：anytls 使用 user 字段而非 password
+            "password": A_P,
             "tls": {
                 "enabled": True,
                 "server_name": "react.dev",
                 "utls": {"enabled": True, "fingerprint": "chrome"},
                 "reality": {
-                    "enabled": True,
                     "public_key": R_PUB,
                     "short_id": "0123456789abcdef"
                 }
-            },
-            "password": A_P
+            }
         },
         {
             "type": "tuic",
@@ -202,109 +196,74 @@ cl_cfg = {
         {"type": "direct", "tag": "direct"}
     ],
     "route": {
-    "rules": [
-      { "protocol": "dns", "action": "hijack-dns" },
-      {
-        "rule_set": [
-          "cn", "cn-cdn", "apple", "icloud", "wechat", "alipay", "xiaohongshu", 
-          "meituan", "amap", "douyin", "jd", "bilibili", "chaoxing", "banking-hk"
+        "rules": [
+            { "protocol": "dns", "action": "hijack-dns" },
+            {
+                "rule_set": [
+                    "cn", "cn-cdn", "apple", "icloud", "wechat", "alipay", "xiaohongshu", 
+                    "meituan", "amap", "douyin", "jd", "bilibili", "chaoxing", "banking-hk"
+                ],
+                "action": "route",
+                "outbound": "direct"
+            },
+            { "rule_set": ["geoip-cn", "geoip-hk"], "action": "route", "outbound": "direct" }
         ],
-        "action": "route",
-        "outbound": "direct"
-      },
-      { "rule_set": ["geoip-cn", "geoip-hk"], "action": "route", "outbound": "direct" }
-    ],
-    "rule_set": [
-      { "tag": "cn", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/cn.srs", "download_detour": "proxy-best" },
-      { "tag": "geoip-cn", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/cn.srs", "download_detour": "proxy-best" },
-      { "tag": "alipay", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/alipay.srs", "download_detour": "proxy-best" },
-      { "tag": "wechat", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/wechat.srs", "download_detour": "proxy-best" },
-      { "tag": "xiaohongshu", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/xiaohongshu.srs", "download_detour": "proxy-best" },
-      { "tag": "cn-cdn", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/cn-cdn.srs", "download_detour": "proxy-best" },
-      { "tag": "apple", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/apple.srs", "download_detour": "proxy-best" },
-      { "tag": "icloud", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/icloud.srs", "download_detour": "proxy-best" },
-      { "tag": "meituan", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/meituan.srs", "download_detour": "proxy-best" },
-      { "tag": "amap", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/amap.srs", "download_detour": "proxy-best" },
-      { "tag": "douyin", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/douyin.srs", "download_detour": "proxy-best" },
-      { "tag": "jd", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/jd.srs", "download_detour": "proxy-best" },
-      { "tag": "bilibili", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/bilibili.srs", "download_detour": "proxy-best" },
-      { "tag": "chaoxing", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/chaoxing.srs", "download_detour": "proxy-best" },
-      { "tag": "banking-hk", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/banking-hk.srs", "download_detour": "proxy-best" },
-      { "tag": "geoip-hk", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/hk.srs", "download_detour": "proxy-best" }
-    ],
-    "final": "proxy-best",
-    "auto_detect_interface": True
-  }
+        "rule_set": [
+            { "tag": "cn", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/cn.srs", "download_detour": "proxy-best" },
+            { "tag": "geoip-cn", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/cn.srs", "download_detour": "proxy-best" },
+            { "tag": "alipay", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/alipay.srs", "download_detour": "proxy-best" },
+            { "tag": "wechat", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/wechat.srs", "download_detour": "proxy-best" },
+            { "tag": "xiaohongshu", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/xiaohongshu.srs", "download_detour": "proxy-best" },
+            { "tag": "cn-cdn", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/cn-cdn.srs", "download_detour": "proxy-best" },
+            { "tag": "apple", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/apple.srs", "download_detour": "proxy-best" },
+            { "tag": "icloud", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/icloud.srs", "download_detour": "proxy-best" },
+            { "tag": "meituan", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/meituan.srs", "download_detour": "proxy-best" },
+            { "tag": "amap", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/amap.srs", "download_detour": "proxy-best" },
+            { "tag": "douyin", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/douyin.srs", "download_detour": "proxy-best" },
+            { "tag": "jd", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/jd.srs", "download_detour": "proxy-best" },
+            { "tag": "bilibili", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/bilibili.srs", "download_detour": "proxy-best" },
+            { "tag": "chaoxing", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/chaoxing.srs", "download_detour": "proxy-best" },
+            { "tag": "banking-hk", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/banking-hk.srs", "download_detour": "proxy-best" },
+            { "tag": "geoip-hk", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/hk.srs", "download_detour": "proxy-best" }
+        ],
+        "final": "proxy-best",
+        "auto_detect_interface": True
+    }
 }
 
-# 5. 集成 Watchdog 并写入文件
+# 5. 集成 Watchdog 
 wd_content = r"""#!/bin/bash
-
-# ╔══════════════════════════════════════════════════════════════╗
-# ║          WARP Watchdog - 自动故障检测与修复脚本                  ║
-# ╚══════════════════════════════════════════════════════════════╝
-
-# \033[1;36m━━━━━ 配置区 ━━━━━\033[0m
 LOCK_FILE="/var/run/warp_watchdog.lock"
 FAIL_COUNT_FILE="/var/run/warp_fail_count"
 LOG_FILE="/var/log/warp_monitor.log"
-
-# 阈值：连续失败几次才动手？(建议 2 或 3)
 MAX_RETRIES=2
-
-# WARP 代理地址
 WARP_PROXY="socks5h://127.0.0.1:40000"
-# 检测目标：Cloudflare Trace
 CHECK_URL="https://www.cloudflare.com/cdn-cgi/trace"
 
-# 解决并发锁
 exec 9>"$LOCK_FILE"
 flock -n 9 || exit 0
 
-# \033[1;36m━━━━━ 核心函数 ━━━━━\033[0m
-
-# \033[1;32m✓ 基础网络检测\033[0m
-check_native_net() {
-    ping -c 2 -W 2 8.8.8.8 > /dev/null 2>&1
-}
-
-# \033[1;33m◈ WARP 深度检测\033[0m
-check_warp_tunnel() {
-    curl -s --proxy "$WARP_PROXY" --max-time 5 "$CHECK_URL" | grep -q "colo="
-}
-
-# \033[1;36m━━━━━ 逻辑主流程 ━━━━━\033[0m
+check_native_net() { ping -c 2 -W 2 8.8.8.8 > /dev/null 2>&1; }
+check_warp_tunnel() { curl -s --proxy "$WARP_PROXY" --max-time 5 "$CHECK_URL" | grep -q "colo="; }
 
 if ! check_native_net; then
-    echo "\033[0;34m$(date): [静默] 本地网络 (LA) 无法连通 8.8.8.8，跳过 WARP 检测。\033[0m" >> "$LOG_FILE"
+    echo "$(date): [静默] 本地网络不可用，跳过。" >> "$LOG_FILE"
     exit 0
 fi
 
 if check_warp_tunnel; then
-    if [ -f "$FAIL_COUNT_FILE" ]; then
-        rm -f "$FAIL_COUNT_FILE"
-        echo "\033[1;32m$(date): [恢复] WARP 链路已自动恢复 / 保持正常。\033[0m" >> "$LOG_FILE"
-    fi
+    [ -f "$FAIL_COUNT_FILE" ] && rm -f "$FAIL_COUNT_FILE"
     exit 0
 else
-    CURRENT_FAIL=0
-    if [ -f "$FAIL_COUNT_FILE" ]; then
-        CURRENT_FAIL=$(cat "$FAIL_COUNT_FILE")
-    fi
-    
+    CURRENT_FAIL=$(cat "$FAIL_COUNT_FILE" 2>/dev/null || echo 0)
     NEXT_FAIL=$((CURRENT_FAIL + 1))
     echo "$NEXT_FAIL" > "$FAIL_COUNT_FILE"
-
     if [ "$NEXT_FAIL" -ge "$MAX_RETRIES" ]; then
-        echo "\033[1;31m$(date): [动作] 连续失败 $NEXT_FAIL 次 (超过阈值)，执行修复...\033[0m" >> "$LOG_FILE"
-        
+        echo "$(date): 执行修复..." >> "$LOG_FILE"
         warp-cli disconnect > /dev/null 2>&1
         sleep 2
         warp-cli connect > /dev/null 2>&1
-        
         rm -f "$FAIL_COUNT_FILE"
-    else
-        echo "\033[1;33m$(date): [观察] WARP 探测失败 (第 $NEXT_FAIL 次)，暂不操作。\033[0m" >> "$LOG_FILE"
     fi
 fi
 """
@@ -318,16 +277,13 @@ with open("/root/warp_lazy_watchdog.sh", "w") as f:
     f.write(wd_content)
 os.chmod("/root/warp_lazy_watchdog.sh", 0o755)
 
-# --- 🚀 核心改进：清理重复 crontab 任务 ---
 print("正在清理旧任务并重新挂载 Watchdog...")
 clean_cron = '(crontab -l 2>/dev/null | grep -v "warp_lazy_watchdog.sh"; echo "* * * * * /root/warp_lazy_watchdog.sh") | crontab -'
 subprocess.run(clean_cron, shell=True)
-
 subprocess.run(["systemctl", "restart", "sing-box"])
 
 # 6. 最终输出
 print("\n✅ 部署成功！")
-print("🛠️  Crontab 已自动去重并挂载完成。")
 print("\n" + "="*20 + " 请全选复制客户端 JSON " + "="*20)
 print(json.dumps(cl_cfg, indent=2))
-print("="*60 + "\n⚠️ 提示：配置信息仅显示一次，且密码已随机更新！")
+print("="*60)
