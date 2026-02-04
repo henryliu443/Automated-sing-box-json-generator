@@ -22,7 +22,7 @@
 在你的 VPS 终端执行以下命令
 
 ```bash
-curl -Ls https://raw.githubusercontent.com/Automated-sing-box-json-generator/main/deploy.py | python3
+curl -Ls https://raw.githubusercontent.com/henryliu443/Automated-sing-box-json-generator/refs/heads/main/deploy.py | python3
 
 ```
 
