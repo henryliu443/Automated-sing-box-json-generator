@@ -20,9 +20,9 @@
 ### 📥 一键部署命令
 
 在你的 VPS 终端执行以下命令
-
+、、、
 curl -Ls https://raw.githubusercontent.com/henryliu443/Automated-sing-box-json-generator/refs/heads/main/deploy.py > deploy.py && python3 deploy.py && rm deploy.py
-
+、、、
 ---
 
 ### 🛠️ 部署逻辑说明
