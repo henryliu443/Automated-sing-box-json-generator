@@ -19,10 +19,10 @@
 
 ### 📥 一键部署命令
 
-在你的 VPS 终端执行以下命令（请将 URL 替换为你仓库中 `deploy.py` 的 Raw 链接）：
+在你的 VPS 终端执行以下命令
 
 ```bash
-curl -Ls https://raw.githubusercontent.com/Automated-sing-box-json-generator/tree/main/deploy.py | python3
+curl -Ls https://raw.githubusercontent.com/Automated-sing-box-json-generator/main/deploy.py | python3
 
 ```
 
