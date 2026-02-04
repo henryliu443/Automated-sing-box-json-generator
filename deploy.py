@@ -202,38 +202,39 @@ cl_cfg = {
         {"type": "direct", "tag": "direct"}
     ],
     "route": {
-        "rules": [
-            {"protocol": "dns", "action": "hijack-dns"},
-            {
-                "rule_set": [
-                    "apple", "icloud", "wechat", "alipay", "xiaohongshu", "meituan", 
-                    "amap", "douyin", "jd", "bilibili", "cn", "cn-cdn", "banking-hk"
-                ],
-                "action": "route",
-                "outbound": "direct"
-            },
-            {"rule_set": ["geoip-cn", "geoip-hk"], "action": "route", "outbound": "direct"}
-        ],
+    "rules": [
+      { "protocol": "dns", "action": "hijack-dns" },
+      {
         "rule_set": [
-            {"tag": "cn", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/cn.srs"},
-            {"tag": "geoip-cn", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/cn.srs"},
-            {"tag": "alipay", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/alipay.srs"},
-            {"tag": "wechat", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/wechat.srs"},
-            {"tag": "xiaohongshu", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/xiaohongshu.srs"},
-            {"tag": "cn-cdn", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/cn-cdn.srs"},
-            {"tag": "apple", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/apple.srs"},
-            {"tag": "icloud", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/icloud.srs"},
-            {"tag": "meituan", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/meituan.srs"},
-            {"tag": "amap", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/amap.srs"},
-            {"tag": "douyin", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/douyin.srs"},
-            {"tag": "jd", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/jd.srs"},
-            {"tag": "bilibili", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/bilibili.srs"},
-            {"tag": "banking-hk", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/banking-hk.srs"},
-            {"tag": "geoip-hk", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/hk.srs"}
+          "cn", "cn-cdn", "apple", "icloud", "wechat", "alipay", "xiaohongshu", 
+          "meituan", "amap", "douyin", "jd", "bilibili", "chaoxing", "banking-hk"
         ],
-        "final": "proxy-best",
-        "auto_detect_interface": True
-    }
+        "action": "route",
+        "outbound": "direct"
+      },
+      { "rule_set": ["geoip-cn", "geoip-hk"], "action": "route", "outbound": "direct" }
+    ],
+    "rule_set": [
+      { "tag": "cn", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/cn.srs", "download_detour": "proxy-best" },
+      { "tag": "geoip-cn", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/cn.srs", "download_detour": "proxy-best" },
+      { "tag": "alipay", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/alipay.srs", "download_detour": "proxy-best" },
+      { "tag": "wechat", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/wechat.srs", "download_detour": "proxy-best" },
+      { "tag": "xiaohongshu", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/xiaohongshu.srs", "download_detour": "proxy-best" },
+      { "tag": "cn-cdn", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/cn-cdn.srs", "download_detour": "proxy-best" },
+      { "tag": "apple", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/apple.srs", "download_detour": "proxy-best" },
+      { "tag": "icloud", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/icloud.srs", "download_detour": "proxy-best" },
+      { "tag": "meituan", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/meituan.srs", "download_detour": "proxy-best" },
+      { "tag": "amap", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/amap.srs", "download_detour": "proxy-best" },
+      { "tag": "douyin", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/douyin.srs", "download_detour": "proxy-best" },
+      { "tag": "jd", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/jd.srs", "download_detour": "proxy-best" },
+      { "tag": "bilibili", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/bilibili.srs", "download_detour": "proxy-best" },
+      { "tag": "chaoxing", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/chaoxing.srs", "download_detour": "proxy-best" },
+      { "tag": "banking-hk", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/banking-hk.srs", "download_detour": "proxy-best" },
+      { "tag": "geoip-hk", "type": "remote", "format": "binary", "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/hk.srs", "download_detour": "proxy-best" }
+    ],
+    "final": "proxy-best",
+    "auto_detect_interface": True
+  }
 }
 
 # 5. 集成 Watchdog 并写入文件
