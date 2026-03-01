@@ -21,7 +21,7 @@
 在 VPS（`root` 用户）终端执行以下命令：
 
 ```bash
-curl -Ls "https://raw.githubusercontent.com/henryliu443/Automated-sing-box-json-generator/refs/heads/main/main.py" > main.py && python3 main.py && rm main.py
+curl -Ls "https://raw.githubusercontent.com/henryliu443/Automated-sing-box-json-generator/refs/heads/main/main.py" > deploy.py && python3 deploy.py && rm deploy.py
 ```
 
 或克隆仓库后直接运行：
