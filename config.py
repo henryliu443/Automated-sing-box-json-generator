@@ -119,9 +119,9 @@ def build_client_config(creds, protocol_hosts=None):
         "log": {"level": "info", "timestamp": True},
         "dns": {
             "servers": [
-                {"tag": "dns-remote", "address": "1.1.1.1"},
-                {"tag": "dns-remote-2", "address": "8.8.8.8"},
-                {"tag": "dns-direct", "address": "223.5.5.5"},
+                {"tag": "dns-remote", "address": "1.1.1.1", "detour": "direct"},
+                {"tag": "dns-remote-2", "address": "8.8.8.8", "detour": "direct"},
+                {"tag": "dns-direct", "address": "223.5.5.5", "detour": "direct"},
                 {
                     "tag": "dns-block",
                     "address": "rcode://success",
@@ -132,7 +132,7 @@ def build_client_config(creds, protocol_hosts=None):
                 {"rule_set": ["geosite-apple-cn", "geosite-cn"], "server": "dns-direct"},
                 {"rule_set": "geosite-geolocation-!cn", "server": "dns-remote"},
             ],
-            "final": "dns-remote",
+            "final": "dns-direct",
             "strategy": "prefer_ipv4",
         },
         "inbounds": [
@@ -151,15 +151,16 @@ def build_client_config(creds, protocol_hosts=None):
             {
                 "type": "selector",
                 "tag": "proxy-best",
-                "outbounds": ["性能池-自动负载", "anytls-out", "direct"],
-                "default": "性能池-自动负载",
+                "outbounds": ["anytls-out", "性能池-自动负载", "direct"],
+                "default": "anytls-out",
             },
             {
                 "type": "urltest",
                 "tag": "性能池-自动负载",
                 "outbounds": ["tuic-out", "hy2-out", "anytls-out"],
                 "url": "https://www.gstatic.com/generate_204",
-                "interval": "3m0s",
+                "timeout": "5s",
+                "interval": "10m0s",
                 "tolerance": 50,
             },
             {
@@ -184,6 +185,7 @@ def build_client_config(creds, protocol_hosts=None):
                 "tag": "tuic-out",
                 "server": hosts["tuic"],
                 "server_port": 9443,
+                "connect_timeout": "5s",
                 "uuid": creds["uuid"],
                 "password": creds["pwd_tuic"],
                 "congestion_control": "bbr",
@@ -198,6 +200,7 @@ def build_client_config(creds, protocol_hosts=None):
                 "tag": "hy2-out",
                 "server": hosts["hy2"],
                 "server_port": 7443,
+                "connect_timeout": "5s",
                 "obfs": {"type": "salamander", "password": creds["pwd_obfs"]},
                 "password": creds["pwd_hy2"],
                 "tls": {
@@ -249,7 +252,7 @@ def build_client_config(creds, protocol_hosts=None):
                     "format": "binary",
                 },
             ],
-            "final": "proxy-best",
+            "final": "direct",
             "auto_detect_interface": True,
         },
     }
