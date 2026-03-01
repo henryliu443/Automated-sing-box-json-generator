@@ -1,7 +1,7 @@
 # Automated-sing-box-json-generator
 
 由于本人头昏眼花看json看得好累，和ai一起vibecoding一个一键脚本
-当前默认采用 `illuminatedhenry.shop` 三子域名 + SNI 分流（reality/hy2/tuic）结构，主要为了方便自用。
+当前默认采用三子域名 + SNI 分流（reality/hy2/tuic）结构，主要为了方便自用。
 
 # 🚀 Sing-box & WARP Watchdog 一键无痕部署
 
