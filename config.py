@@ -167,9 +167,14 @@ def build_client_config(creds, protocol_hosts=None):
                 "tag": "anytls-out",
                 "server": hosts["reality"],
                 "server_port": 23244,
+                "idle_session_check_interval": "30s",
+                "idle_session_timeout": "30s",
+                "min_idle_session": 5,
                 "tls": {
                     "enabled": True,
-                    "server_name": REALITY_DECOY_SERVER,
+                    "disable_sni": False,
+                    "server_name": hosts["reality"],
+                    "insecure": False,
                     "utls": {"enabled": True, "fingerprint": "chrome"},
                     "reality": {
                         "enabled": True,
