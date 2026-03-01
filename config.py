@@ -92,7 +92,6 @@ def build_client_config(creds, server_ip):
                 {
                     "tag": "dns-direct",
                     "address": "https://223.5.5.5/dns-query",
-                    "detour": "direct",
                 },
                 {
                     "tag": "dns-block",
