@@ -1,7 +1,7 @@
+import re
+import select
 import subprocess
 import time
-import select
-import re
 
 
 def run_cmd(cmd, timeout=1800):
@@ -36,7 +36,6 @@ def run_cmd(cmd, timeout=1800):
 
         now = time.time()
         elapsed = int(now - start)
-        # Always print a live heartbeat so long-running installers never look frozen.
         if now - last_log >= 1:
             print(
                 f"\r[WAIT] {spinner[spin_idx % len(spinner)]} command running... {elapsed}s",
@@ -73,66 +72,6 @@ def require_root():
     uid = subprocess.run("id -u", shell=True, stdout=subprocess.PIPE, text=True, check=True).stdout.strip()
     if uid != "0":
         raise RuntimeError("请使用 root 运行")
-
-
-def warp_active(service):
-    result = subprocess.run(
-        f"systemctl is-active {service}",
-        shell=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    return result.stdout.strip() == "active"
-
-
-def warp_proxy_ready():
-    cmd = (
-        'curl -s --proxy "socks5h://127.0.0.1:40000" --max-time 6 '
-        "https://www.cloudflare.com/cdn-cgi/trace"
-    )
-    result = subprocess.run(
-        cmd,
-        shell=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    out = result.stdout
-    return result.returncode == 0 and ("warp=on" in out or "warp=plus" in out)
-
-
-def singbox_installed():
-    result = subprocess.run(
-        "which sing-box",
-        shell=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    return result.returncode == 0
-
-
-def nginx_installed():
-    result = subprocess.run(
-        "which nginx",
-        shell=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    return result.returncode == 0
-
-
-def nginx_active():
-    result = subprocess.run(
-        "systemctl is-active nginx",
-        shell=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    return result.stdout.strip() == "active"
 
 
 def ensure_ss_tool():
@@ -192,31 +131,62 @@ def print_port_snapshot():
     print(run_cmd("ss -tulnp"))
 
 
-def ensure_port_safety(require_nginx_listener=True):
+def ensure_port_safety():
     ensure_ss_tool()
 
-    # sing-box / warp ports: allow expected owners only.
+    # sing-box inbound ports
     assert_port_allowed(23244, "tcp", {"sing-box"})
     assert_port_allowed(7443, "udp", {"sing-box"})
     assert_port_allowed(9443, "udp", {"sing-box"})
+
+    # local WARP socks proxy
     assert_port_allowed(40000, "tcp", {"warp-svc", "warp-go"})
-
-    # 80 should be owned by nginx only (for fake front + ACME webroot).
-    assert_port_allowed(80, "tcp", {"nginx"})
-    if require_nginx_listener:
-        assert_port_required(80, "tcp", {"nginx"})
-
-    # WARP local proxy must exist after dependency checks.
     assert_port_required(40000, "tcp", {"warp-svc", "warp-go"})
 
 
+def warp_active(service):
+    result = subprocess.run(
+        f"systemctl is-active {service}",
+        shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    return result.stdout.strip() == "active"
+
+
+def warp_proxy_ready():
+    cmd = (
+        'curl -s --proxy "socks5h://127.0.0.1:40000" --max-time 6 '
+        "https://www.cloudflare.com/cdn-cgi/trace"
+    )
+    result = subprocess.run(
+        cmd,
+        shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    out = result.stdout
+    return result.returncode == 0 and ("warp=on" in out or "warp=plus" in out)
+
+
+def singbox_installed():
+    result = subprocess.run(
+        "which sing-box",
+        shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    return result.returncode == 0
+
+
 def ensure_warp():
-    # Prefer functional check: if local SOCKS5 WARP proxy works, no install needed.
     if warp_proxy_ready():
         print("WARP 代理已就绪，跳过安装")
         return
 
-    # Existing WARP service is up but proxy is unavailable: fail fast with guidance.
     active_services = [svc for svc in ("warp-go", "warp-svc") if warp_active(svc)]
     if active_services:
         services = ", ".join(active_services)
@@ -245,39 +215,12 @@ def ensure_singbox():
         raise RuntimeError("sing-box 安装失败")
 
 
-def ensure_nginx():
-    # Fast-fail: avoid silent collision with Apache/Caddy/etc.
-    assert_port_allowed(80, "tcp", {"nginx"})
-
-    if not nginx_installed():
-        print("安装 nginx...")
-        if command_exists("apt-get"):
-            run_cmd("DEBIAN_FRONTEND=noninteractive apt-get update")
-            run_cmd("DEBIAN_FRONTEND=noninteractive apt-get install -y nginx")
-        elif command_exists("dnf"):
-            run_cmd("dnf install -y nginx")
-        elif command_exists("yum"):
-            run_cmd("yum install -y nginx")
-        else:
-            raise RuntimeError("未检测到可用包管理器，无法自动安装 nginx")
-
-    if not nginx_installed():
-        raise RuntimeError("nginx 安装失败")
-
-    run_cmd("systemctl enable nginx")
-    run_cmd("systemctl start nginx")
-    if not nginx_active():
-        raise RuntimeError("nginx 启动失败: systemctl is-active nginx != active")
-    assert_port_required(80, "tcp", {"nginx"})
-
-
 def ensure_dependencies():
     require_root()
     ensure_ss_tool()
     ensure_warp()
     ensure_singbox()
-    ensure_nginx()
-    ensure_port_safety(require_nginx_listener=True)
+    ensure_port_safety()
     print_port_snapshot()
 
 

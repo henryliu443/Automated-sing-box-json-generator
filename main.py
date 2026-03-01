@@ -9,7 +9,6 @@ REQUIRED_FILES = [
     "deploy.py",
     "config.py",
     "certs.py",
-    "frontend.py",
     "installer.py",
     "credentials.py",
     "watchdog.py",

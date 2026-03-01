@@ -12,10 +12,9 @@
 * **随机强凭据生成**：自动生成 20 位密码，AnyTLS、TUIC、Hy2 分别独立。
 * **SNI 协议分层**：三协议默认绑定三子域名，客户端配置输出为域名直连（de-IP）。
 * **伪装与接入分离**：Reality 使用独立握手伪装域名，连接域名仍为你的三条子域名。
-* **证书自动签发**：自动为 TUIC/Hy2 子域名签发并安装 Let's Encrypt 证书（支持 DNS-01 / HTTP-01）。
+* **证书自动签发**：自动为 TUIC/Hy2 子域名签发并安装 Let's Encrypt 证书（Cloudflare DNS-01）。
 * **严格 TLS 校验**：客户端 TUIC/Hy2 默认启用证书严格校验（不再 `insecure`）。
-* **Nginx 前台假网页**：自动安装/配置 nginx，部署轻量静态前台页面并提供 `/healthz`。
-* **端口冲突防护**：部署中自动检查 `80/23244/7443/9443/40000` 端口归属，避免服务冲突。
+* **端口冲突防护**：部署中自动检查 `23244/7443/9443/40000` 端口归属，避免服务冲突。
 * **自动化 Watchdog**：集成双重检测逻辑（Ping 检测 + Cloudflare Trace 穿透检测），发现 WARP 掉线自动重连。
 * **任务去重**：部署时自动清理旧的 `crontab` 任务，防止系统任务堆积。
 * **配置模块化**：安装检查、凭据生成、配置生成、Watchdog 部署已拆分为独立模块。
@@ -41,15 +40,14 @@ python3 main.py
 ### 🛠️ 部署逻辑说明
 
 1. **输入主域名**：脚本会提示输入主域名（默认 `illuminatedhenry.shop`），自动生成三条协议子域名。
-2. **依赖检查/安装**：自动检查并确保 WARP、`sing-box`、`nginx` 可用。
-3. **部署前台网页**：自动下发 nginx 配置与静态假网页，统一 webroot 到 `/var/www/html`。
-4. **签发证书**：自动选择 ACME 挑战方式并为 `tuic`/`hy2` 子域名签发证书。
-5. **生成凭据**：调用 `sing-box` 生成 UUID 与 Reality KeyPair，并生成随机密码。
-6. **写入配置**：
+2. **依赖检查/安装**：自动检查并确保 WARP、`sing-box` 可用。
+3. **签发证书**：通过 Cloudflare DNS-01 为 `tuic`/`hy2` 子域名签发证书。
+4. **生成凭据**：调用 `sing-box` 生成 UUID 与 Reality KeyPair，并生成随机密码。
+5. **写入配置**：
 * 服务端配置：`/etc/sing-box/config.json`
 * 守护脚本：`/root/warp_lazy_watchdog.sh`
-7. **挂载定时任务**：每 60 秒执行一次 Watchdog，自动去重旧任务。
-8. **重启与输出**：重启 `sing-box`，输出端口快照与客户端 GUI JSON。
+6. **挂载定时任务**：每 60 秒执行一次 Watchdog，自动去重旧任务。
+7. **重启与输出**：重启 `sing-box`，输出端口快照与客户端 GUI JSON。
 
 ---
 
@@ -59,8 +57,7 @@ python3 main.py
 * `installer.py`：root 校验与依赖安装检查（WARP 本地代理 / sing-box）
 * `credentials.py`：动态生成 UUID、Reality 密钥与随机密码
 * `config.py`：生成服务端/客户端配置 JSON（函数化）
-* `certs.py`：ACME 证书签发与安装（TUIC/Hy2）
-* `frontend.py`：nginx 假网页与 webroot 站点配置
+* `certs.py`：Cloudflare DNS-01 证书签发与安装（TUIC/Hy2）
 * `watchdog.py`：写入 watchdog 脚本并挂载 crontab
 * `main.py`：自举入口（每次启动都会刷新模块，再执行 `deploy.main()`）
 
@@ -75,17 +72,7 @@ python3 main.py
 
 ### 🔐 证书挑战方式说明
 
-脚本会按以下顺序自动选择：
-
-1. **Cloudflare DNS-01 (`dns_cf`)**：当检测到环境变量 `CF_Token` + `CF_Zone_ID` 时优先使用。
-2. **HTTP-01 webroot**：当检测到 `80` 端口已监听且 webroot 目录 `/var/www/html` 存在时使用（适合 nginx 前台站）。
-3. **HTTP-01 standalone**：仅在前两者都不满足时使用（需要可临时占用 80 端口，且外网可访问）。
-
-若你计划用 nginx 作为假网页前台，建议确保：
-
-* nginx 正在监听 `0.0.0.0:80`
-* 站点根目录为 `/var/www/html`（或按需自行调整脚本中的 `ACME_WEBROOT`）
-* 防火墙/安全组放行入站 TCP `80`
+当前仅使用 **Cloudflare DNS-01 (`dns_cf`)**。
 
 若统一采用 Cloudflare DNS-01，请先在运行前导出：
 

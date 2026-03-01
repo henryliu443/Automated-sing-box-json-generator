@@ -12,7 +12,6 @@ from config import (
     build_server_config,
 )
 from credentials import generate_credentials
-from frontend import deploy_fake_frontend
 from installer import ensure_dependencies, ensure_port_safety, print_port_snapshot
 from watchdog import deploy_watchdog
 
@@ -51,13 +50,6 @@ def main():
         return 1
 
     try:
-        deploy_fake_frontend(domain_root, protocol_hosts)
-        ensure_port_safety(require_nginx_listener=True)
-    except RuntimeError as e:
-        print(str(e))
-        return 1
-
-    try:
         ensure_tls_certificates(protocol_hosts)
     except RuntimeError as e:
         print(str(e))
@@ -76,7 +68,7 @@ def main():
     print("正在重启 sing-box...")
     try:
         subprocess.run(["systemctl", "restart", "sing-box"], check=True)
-        ensure_port_safety(require_nginx_listener=True)
+        ensure_port_safety()
     except (subprocess.CalledProcessError, RuntimeError) as e:
         print(f"重启或端口校验失败: {e}")
         return 1
