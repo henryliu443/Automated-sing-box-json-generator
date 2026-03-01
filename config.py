@@ -122,7 +122,8 @@ def build_client_config(creds, protocol_hosts=None):
                 {
                     "tag": "dns-remote",
                     "address": "https://8.8.8.8/dns-query",
-                    "detour": "proxy-best",
+                    # Prevent recursive dependency: DNS transport must not depend on proxy-best.
+                    "detour": "direct",
                 },
                 {
                     "tag": "dns-direct",
@@ -134,7 +135,6 @@ def build_client_config(creds, protocol_hosts=None):
                 },
             ],
             "rules": [
-                {"outbound": "any", "server": "dns-direct"},
                 {"rule_set": "geosite-category-ads-all", "server": "dns-block"},
                 {"rule_set": ["geosite-apple-cn", "geosite-cn"], "server": "dns-direct"},
                 {"rule_set": "geosite-geolocation-!cn", "server": "dns-remote"},
