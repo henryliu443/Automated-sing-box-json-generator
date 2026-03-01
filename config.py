@@ -1,5 +1,5 @@
 DOMAIN_ROOT = "illuminatedhenry.shop"
-REALITY_DECOY_SERVER = "www.cloudflare.com"
+REALITY_DECOY_SERVER = "react.dev"
 REALITY_DECOY_PORT = 443
 HY2_MASQUERADE_URL = "https://www.cloudflare.com"
 
@@ -158,7 +158,7 @@ def build_client_config(creds, protocol_hosts=None):
                 "type": "urltest",
                 "tag": "性能池-自动负载",
                 "outbounds": ["tuic-out", "hy2-out", "anytls-out"],
-                "url": "https://www.gstatic.com/generate_204",
+                "url": "https://cp.cloudflare.com/generate_204",
                 "interval": "10m0s",
                 "tolerance": 50,
             },
