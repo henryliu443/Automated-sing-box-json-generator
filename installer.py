@@ -124,10 +124,37 @@ def nginx_installed():
     return result.returncode == 0
 
 
-def get_port_owners(port, proto):
-    if not command_exists("ss"):
-        return set(), ""
+def nginx_active():
+    result = subprocess.run(
+        "systemctl is-active nginx",
+        shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    return result.stdout.strip() == "active"
 
+
+def ensure_ss_tool():
+    if command_exists("ss"):
+        return
+
+    print("安装 ss 命令 (iproute2)...")
+    if command_exists("apt-get"):
+        run_cmd("DEBIAN_FRONTEND=noninteractive apt-get update")
+        run_cmd("DEBIAN_FRONTEND=noninteractive apt-get install -y iproute2")
+    elif command_exists("dnf"):
+        run_cmd("dnf install -y iproute")
+    elif command_exists("yum"):
+        run_cmd("yum install -y iproute")
+    else:
+        raise RuntimeError("未检测到可用包管理器，无法安装 iproute2(ss)")
+
+    if not command_exists("ss"):
+        raise RuntimeError("ss 命令安装失败，无法执行端口冲突检查")
+
+
+def get_port_owners(port, proto):
     flag = "-ltnp" if proto == "tcp" else "-lunp"
     result = subprocess.run(
         f"ss -H {flag} 'sport = :{port}'",
@@ -161,17 +188,12 @@ def assert_port_required(port, proto, required_owners):
 
 
 def print_port_snapshot():
-    if not command_exists("ss"):
-        print("未检测到 ss，跳过端口快照")
-        return
     print("当前端口监听快照 (ss -tulnp):")
     print(run_cmd("ss -tulnp"))
 
 
 def ensure_port_safety(require_nginx_listener=True):
-    if not command_exists("ss"):
-        print("未检测到 ss，跳过端口冲突检查")
-        return
+    ensure_ss_tool()
 
     # sing-box / warp ports: allow expected owners only.
     assert_port_allowed(23244, "tcp", {"sing-box"})
@@ -244,10 +266,14 @@ def ensure_nginx():
 
     run_cmd("systemctl enable nginx")
     run_cmd("systemctl start nginx")
+    if not nginx_active():
+        raise RuntimeError("nginx 启动失败: systemctl is-active nginx != active")
+    assert_port_required(80, "tcp", {"nginx"})
 
 
 def ensure_dependencies():
     require_root()
+    ensure_ss_tool()
     ensure_warp()
     ensure_singbox()
     ensure_nginx()

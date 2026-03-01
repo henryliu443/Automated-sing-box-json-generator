@@ -1,10 +1,9 @@
 import os
 import shlex
-import socket
 import subprocess
 
 from config import HY2_CERT_PATH, HY2_KEY_PATH, TUIC_CERT_PATH, TUIC_KEY_PATH
-from installer import run_cmd
+from installer import ensure_ss_tool, get_port_owners, nginx_active, run_cmd
 
 ACME_SH_PATH = "/root/.acme.sh/acme.sh"
 ACME_INSTALL_URL = "https://get.acme.sh"
@@ -30,12 +29,14 @@ def _command_exists(cmd):
     return result.returncode == 0
 
 
-def _port_listening(port, host="127.0.0.1"):
-    try:
-        with socket.create_connection((host, port), timeout=1):
-            return True
-    except OSError:
-        return False
+def _tcp_port_owners(port):
+    ensure_ss_tool()
+    return get_port_owners(port, "tcp")
+
+
+def _nginx_listening_80():
+    owners, _ = _tcp_port_owners(80)
+    return "nginx" in owners
 
 
 def _has_cloudflare_dns_credentials():
@@ -46,7 +47,7 @@ def _choose_challenge_mode():
     if _has_cloudflare_dns_credentials():
         return "dns_cf"
 
-    if os.path.isdir(ACME_WEBROOT) and _port_listening(80):
+    if os.path.isdir(ACME_WEBROOT) and _nginx_listening_80():
         return "webroot"
 
     return "standalone"
@@ -132,8 +133,35 @@ def _ensure_webroot_ready():
             f"检测到 webroot 模式但目录不存在: {ACME_WEBROOT}；"
             "请先部署并配置 nginx 站点根目录"
         )
-    if not _port_listening(80):
-        raise RuntimeError("检测到 webroot 模式但 80 端口未监听；请先启动 nginx")
+    if not nginx_active():
+        raise RuntimeError("检测到 webroot 模式但 nginx 未处于 active 状态")
+
+    owners, raw = _tcp_port_owners(80)
+    if "nginx" not in owners:
+        raise RuntimeError(
+            "检测到 webroot 模式但 nginx 未监听 80 端口；"
+            f"当前监听者: {sorted(owners)}\n监听明细:\n{raw or '(empty)'}"
+        )
+
+
+def _verify_webroot_probe():
+    token = "singbox-acme-probe"
+    challenge_dir = os.path.join(ACME_WEBROOT, ".well-known", "acme-challenge")
+    probe_file = os.path.join(challenge_dir, token)
+    os.makedirs(challenge_dir, exist_ok=True)
+
+    with open(probe_file, "w", encoding="utf-8") as f:
+        f.write(token)
+
+    try:
+        out = run_cmd(f"curl -fsS --max-time 5 http://127.0.0.1/.well-known/acme-challenge/{token}")
+        if token not in out:
+            raise RuntimeError("nginx 已监听 80，但 ACME challenge 路径未正确映射到 webroot")
+    finally:
+        try:
+            os.remove(probe_file)
+        except FileNotFoundError:
+            pass
 
 
 def _resolve_acme_sh():
@@ -201,10 +229,13 @@ def ensure_tls_certificates(protocol_hosts):
     elif challenge_mode == "webroot":
         print(f"证书挑战方式: HTTP-01 webroot ({ACME_WEBROOT})")
         _ensure_webroot_ready()
+        _verify_webroot_probe()
     else:
-        if _port_listening(80):
+        owners, raw = _tcp_port_owners(80)
+        if owners:
             raise RuntimeError(
-                "80 端口已被占用且未启用 nginx webroot；"
+                "80 端口已被占用且无法使用 standalone；"
+                f"当前监听者: {sorted(owners)}\n监听明细:\n{raw or '(empty)'}\n"
                 "请改用 Cloudflare DNS-01 或先配置 nginx + webroot"
             )
         print("证书挑战方式: HTTP-01 standalone (临时占用 80 端口)")
