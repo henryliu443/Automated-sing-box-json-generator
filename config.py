@@ -169,7 +169,7 @@ def build_client_config(creds, protocol_hosts=None):
                 "server_port": 23244,
                 "tls": {
                     "enabled": True,
-                    "server_name": hosts["reality"],
+                    "server_name": REALITY_DECOY_SERVER,
                     "utls": {"enabled": True, "fingerprint": "chrome"},
                     "reality": {
                         "enabled": True,
