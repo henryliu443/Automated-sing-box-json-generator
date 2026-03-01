@@ -52,7 +52,7 @@ python3 main.py
 * `credentials.py`：动态生成 UUID、Reality 密钥与随机密码
 * `config.py`：生成服务端/客户端配置 JSON（函数化）
 * `watchdog.py`：写入 watchdog 脚本并挂载 crontab
-* `main.py`：轻量入口（转发到 `deploy.main()`）
+* `main.py`：自举入口（缺失模块时自动下载，再执行 `deploy.main()`）
 
 ---
 
