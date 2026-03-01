@@ -119,14 +119,9 @@ def build_client_config(creds, protocol_hosts=None):
         "log": {"level": "info", "timestamp": True},
         "dns": {
             "servers": [
-                {
-                    "tag": "dns-remote",
-                    "address": "8.8.8.8",
-                },
-                {
-                    "tag": "dns-direct",
-                    "address": "223.5.5.5",
-                },
+                {"tag": "dns-remote", "address": "1.1.1.1"},
+                {"tag": "dns-remote-2", "address": "8.8.8.8"},
+                {"tag": "dns-direct", "address": "223.5.5.5"},
                 {
                     "tag": "dns-block",
                     "address": "rcode://success",
