@@ -12,7 +12,8 @@ from config import (
     build_server_config,
 )
 from credentials import generate_credentials
-from installer import ensure_dependencies
+from frontend import deploy_fake_frontend
+from installer import ensure_dependencies, ensure_port_safety, print_port_snapshot
 from watchdog import deploy_watchdog
 
 DOMAIN_RE = re.compile(
@@ -50,6 +51,13 @@ def main():
         return 1
 
     try:
+        deploy_fake_frontend(domain_root, protocol_hosts)
+        ensure_port_safety(require_nginx_listener=True)
+    except RuntimeError as e:
+        print(str(e))
+        return 1
+
+    try:
         ensure_tls_certificates(protocol_hosts)
     except RuntimeError as e:
         print(str(e))
@@ -66,7 +74,12 @@ def main():
     deploy_watchdog("/root/warp_lazy_watchdog.sh")
 
     print("正在重启 sing-box...")
-    subprocess.run(["systemctl", "restart", "sing-box"], check=True)
+    try:
+        subprocess.run(["systemctl", "restart", "sing-box"], check=True)
+        ensure_port_safety(require_nginx_listener=True)
+    except (subprocess.CalledProcessError, RuntimeError) as e:
+        print(f"重启或端口校验失败: {e}")
+        return 1
 
     print("\n✅ 部署成功")
     print("协议子域名映射:")
@@ -74,6 +87,7 @@ def main():
     print(f"  hy2     -> {protocol_hosts['hy2']}")
     print(f"  tuic    -> {protocol_hosts['tuic']}")
     print(f"Reality 伪装握手域名 -> {REALITY_DECOY_SERVER}")
+    print_port_snapshot()
     print("\n" + "=" * 20 + " 请全选复制客户端 JSON " + "=" * 20)
     print(json.dumps(cl_cfg, indent=2, ensure_ascii=False))
     print("=" * 60)

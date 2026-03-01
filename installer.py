@@ -1,6 +1,7 @@
 import subprocess
 import time
 import select
+import re
 
 
 def run_cmd(cmd, timeout=1800):
@@ -57,6 +58,17 @@ def run_cmd(cmd, timeout=1800):
     return output
 
 
+def command_exists(name):
+    result = subprocess.run(
+        f"command -v {name} >/dev/null 2>&1",
+        shell=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        text=True,
+    )
+    return result.returncode == 0
+
+
 def require_root():
     uid = subprocess.run("id -u", shell=True, stdout=subprocess.PIPE, text=True, check=True).stdout.strip()
     if uid != "0":
@@ -101,6 +113,81 @@ def singbox_installed():
     return result.returncode == 0
 
 
+def nginx_installed():
+    result = subprocess.run(
+        "which nginx",
+        shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    return result.returncode == 0
+
+
+def get_port_owners(port, proto):
+    if not command_exists("ss"):
+        return set(), ""
+
+    flag = "-ltnp" if proto == "tcp" else "-lunp"
+    result = subprocess.run(
+        f"ss -H {flag} 'sport = :{port}'",
+        shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    raw = result.stdout.strip()
+    owners = set(re.findall(r'\(\("([^"]+)"', raw))
+    return owners, raw
+
+
+def assert_port_allowed(port, proto, allowed_owners):
+    owners, raw = get_port_owners(port, proto)
+    conflict = owners - set(allowed_owners)
+    if conflict:
+        raise RuntimeError(
+            f"{proto}/{port} 端口被非预期进程占用: {sorted(conflict)}\n"
+            f"监听明细:\n{raw or '(empty)'}"
+        )
+
+
+def assert_port_required(port, proto, required_owners):
+    owners, raw = get_port_owners(port, proto)
+    if not (owners & set(required_owners)):
+        raise RuntimeError(
+            f"{proto}/{port} 未检测到预期进程监听: {sorted(required_owners)}\n"
+            f"监听明细:\n{raw or '(empty)'}"
+        )
+
+
+def print_port_snapshot():
+    if not command_exists("ss"):
+        print("未检测到 ss，跳过端口快照")
+        return
+    print("当前端口监听快照 (ss -tulnp):")
+    print(run_cmd("ss -tulnp"))
+
+
+def ensure_port_safety(require_nginx_listener=True):
+    if not command_exists("ss"):
+        print("未检测到 ss，跳过端口冲突检查")
+        return
+
+    # sing-box / warp ports: allow expected owners only.
+    assert_port_allowed(23244, "tcp", {"sing-box"})
+    assert_port_allowed(7443, "udp", {"sing-box"})
+    assert_port_allowed(9443, "udp", {"sing-box"})
+    assert_port_allowed(40000, "tcp", {"warp-svc", "warp-go"})
+
+    # 80 should be owned by nginx only (for fake front + ACME webroot).
+    assert_port_allowed(80, "tcp", {"nginx"})
+    if require_nginx_listener:
+        assert_port_required(80, "tcp", {"nginx"})
+
+    # WARP local proxy must exist after dependency checks.
+    assert_port_required(40000, "tcp", {"warp-svc", "warp-go"})
+
+
 def ensure_warp():
     # Prefer functional check: if local SOCKS5 WARP proxy works, no install needed.
     if warp_proxy_ready():
@@ -136,10 +223,36 @@ def ensure_singbox():
         raise RuntimeError("sing-box 安装失败")
 
 
+def ensure_nginx():
+    # Fast-fail: avoid silent collision with Apache/Caddy/etc.
+    assert_port_allowed(80, "tcp", {"nginx"})
+
+    if not nginx_installed():
+        print("安装 nginx...")
+        if command_exists("apt-get"):
+            run_cmd("DEBIAN_FRONTEND=noninteractive apt-get update")
+            run_cmd("DEBIAN_FRONTEND=noninteractive apt-get install -y nginx")
+        elif command_exists("dnf"):
+            run_cmd("dnf install -y nginx")
+        elif command_exists("yum"):
+            run_cmd("yum install -y nginx")
+        else:
+            raise RuntimeError("未检测到可用包管理器，无法自动安装 nginx")
+
+    if not nginx_installed():
+        raise RuntimeError("nginx 安装失败")
+
+    run_cmd("systemctl enable nginx")
+    run_cmd("systemctl start nginx")
+
+
 def ensure_dependencies():
     require_root()
     ensure_warp()
     ensure_singbox()
+    ensure_nginx()
+    ensure_port_safety(require_nginx_listener=True)
+    print_port_snapshot()
 
 
 if __name__ == "__main__":
