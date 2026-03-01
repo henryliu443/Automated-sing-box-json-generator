@@ -12,16 +12,14 @@ REQUIRED_FILES = [
 ]
 
 
-def ensure_required_files():
+def refresh_required_files():
     for name in REQUIRED_FILES:
-        if os.path.exists(name):
-            continue
         url = f"{BASE_URL}/{name}"
-        print(f"[bootstrap] downloading {name} ...")
+        print(f"[bootstrap] refreshing {name} ...")
         urllib.request.urlretrieve(url, name)
 
 
 if __name__ == "__main__":
-    ensure_required_files()
+    refresh_required_files()
     deploy = importlib.import_module("deploy")
     raise SystemExit(deploy.main())
