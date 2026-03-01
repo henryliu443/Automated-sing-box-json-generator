@@ -211,8 +211,8 @@ def build_client_config(creds, protocol_hosts=None):
             "rules": [
                 {"protocol": "dns", "action": "hijack-dns"},
                 {"rule_set": "geosite-category-ads-all", "action": "reject"},
-                # Ensure DoH upstream traffic does not enter proxy recursion.
-                {"ip_cidr": ["8.8.8.8/32", "223.5.5.5/32"], "outbound": "direct"},
+                # Ensure DNS upstream traffic does not enter proxy recursion.
+                {"ip_cidr": ["1.1.1.1/32", "8.8.8.8/32", "223.5.5.5/32"], "outbound": "direct"},
                 {"ip_is_private": True, "outbound": "direct"},
                 {"rule_set": ["geosite-apple-cn", "geosite-cn", "geoip-cn"], "outbound": "direct"},
                 {"rule_set": "geosite-geolocation-!cn", "outbound": "proxy-best"},
