@@ -144,7 +144,7 @@ def _ensure_webroot_ready():
         )
 
 
-def _verify_webroot_probe():
+def _verify_webroot_probe(host):
     token = "singbox-acme-probe"
     challenge_dir = os.path.join(ACME_WEBROOT, ".well-known", "acme-challenge")
     probe_file = os.path.join(challenge_dir, token)
@@ -154,9 +154,14 @@ def _verify_webroot_probe():
         f.write(token)
 
     try:
-        out = run_cmd(f"curl -fsS --max-time 5 http://127.0.0.1/.well-known/acme-challenge/{token}")
+        out = run_cmd(
+            f"curl -fsS --max-time 5 --resolve {_q(host)}:80:127.0.0.1 "
+            f"http://{_q(host)}/.well-known/acme-challenge/{token}"
+        )
         if token not in out:
-            raise RuntimeError("nginx 已监听 80，但 ACME challenge 路径未正确映射到 webroot")
+            raise RuntimeError(
+                f"nginx 已监听 80，但域名 {host} 的 ACME challenge 路径未正确映射到 webroot"
+            )
     finally:
         try:
             os.remove(probe_file)
@@ -229,7 +234,8 @@ def ensure_tls_certificates(protocol_hosts):
     elif challenge_mode == "webroot":
         print(f"证书挑战方式: HTTP-01 webroot ({ACME_WEBROOT})")
         _ensure_webroot_ready()
-        _verify_webroot_probe()
+        _verify_webroot_probe(protocol_hosts["tuic"])
+        _verify_webroot_probe(protocol_hosts["hy2"])
     else:
         owners, raw = _tcp_port_owners(80)
         if owners:
