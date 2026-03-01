@@ -1,5 +1,6 @@
 import datetime
 import os
+import time
 
 from installer import run_cmd
 
@@ -7,9 +8,12 @@ SITE_ROOT = "/var/www/html"
 INDEX_PATH = f"{SITE_ROOT}/index.html"
 HEALTHZ_PATH = f"{SITE_ROOT}/healthz"
 NGINX_FRONT_CONF = "/etc/nginx/conf.d/edge-front.conf"
+DISABLED_CONF_DIR = "/etc/nginx/singbox-disabled"
 DISABLE_CANDIDATES = [
     "/etc/nginx/conf.d/default.conf",
     "/etc/nginx/sites-enabled/default",
+    "/etc/nginx/conf.d/default.conf.disabled-by-singbox",
+    "/etc/nginx/sites-enabled/default.disabled-by-singbox",
 ]
 
 HTML_TEMPLATE = """<!doctype html>
@@ -282,16 +286,24 @@ def _render_index(domain_root, protocol_hosts):
     return page
 
 
+def _move_conf_out_of_include(path):
+    if not os.path.exists(path):
+        return
+
+    os.makedirs(DISABLED_CONF_DIR, exist_ok=True)
+    base = os.path.basename(path)
+    target = os.path.join(DISABLED_CONF_DIR, base)
+
+    if os.path.exists(target):
+        ts = int(time.time())
+        target = os.path.join(DISABLED_CONF_DIR, f"{base}.{ts}")
+
+    os.rename(path, target)
+
+
 def _disable_conflicts():
     for path in DISABLE_CANDIDATES:
-        if not os.path.exists(path):
-            continue
-        disabled_path = f"{path}.disabled-by-singbox"
-        if os.path.exists(disabled_path):
-            if os.path.isfile(path) or os.path.islink(path):
-                os.remove(path)
-            continue
-        os.rename(path, disabled_path)
+        _move_conf_out_of_include(path)
 
 
 def deploy_fake_frontend(domain_root, protocol_hosts):
