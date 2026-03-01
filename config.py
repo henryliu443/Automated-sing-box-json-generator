@@ -1,4 +1,25 @@
-def build_server_config(creds):
+DOMAIN_ROOT = "illuminatedhenry.shop"
+
+# SNI segmented domain mapping:
+# jx1xfnke -> reality, t7mmubf0 -> hy2, xts6e4iz -> tuic
+PROTOCOL_HOSTS = {
+    "reality": f"jx1xfnke.{DOMAIN_ROOT}",
+    "hy2": f"t7mmubf0.{DOMAIN_ROOT}",
+    "tuic": f"xts6e4iz.{DOMAIN_ROOT}",
+}
+
+
+def build_protocol_hosts(domain_root=DOMAIN_ROOT):
+    root = domain_root.strip().lower().rstrip(".")
+    return {
+        "reality": f"jx1xfnke.{root}",
+        "hy2": f"t7mmubf0.{root}",
+        "tuic": f"xts6e4iz.{root}",
+    }
+
+
+def build_server_config(creds, protocol_hosts=None):
+    hosts = protocol_hosts or PROTOCOL_HOSTS
     return {
         "log": {"level": "info", "timestamp": True},
         "inbounds": [
@@ -22,7 +43,7 @@ def build_server_config(creds):
                 ],
                 "tls": {
                     "enabled": True,
-                    "server_name": "react.dev",
+                    "server_name": hosts["reality"],
                     "reality": {
                         "enabled": True,
                         "handshake": {"server": "react.dev", "server_port": 443},
@@ -41,6 +62,7 @@ def build_server_config(creds):
                 "zero_rtt_handshake": True,
                 "tls": {
                     "enabled": True,
+                    "server_name": hosts["tuic"],
                     "certificate_path": "/etc/sing-box-tuic/certs/tuic.crt",
                     "key_path": "/etc/sing-box-tuic/certs/tuic.key",
                 },
@@ -56,6 +78,7 @@ def build_server_config(creds):
                 "masquerade": "https://bing.com",
                 "tls": {
                     "enabled": True,
+                    "server_name": hosts["hy2"],
                     "certificate_path": "/etc/hysteria/server.crt",
                     "key_path": "/etc/hysteria/server.key",
                 },
@@ -79,7 +102,8 @@ def build_server_config(creds):
     }
 
 
-def build_client_config(creds, server_ip):
+def build_client_config(creds, protocol_hosts=None):
+    hosts = protocol_hosts or PROTOCOL_HOSTS
     return {
         "log": {"level": "info", "timestamp": True},
         "dns": {
@@ -137,11 +161,11 @@ def build_client_config(creds, server_ip):
             {
                 "type": "anytls",
                 "tag": "anytls-out",
-                "server": server_ip,
+                "server": hosts["reality"],
                 "server_port": 23244,
                 "tls": {
                     "enabled": True,
-                    "server_name": "react.dev",
+                    "server_name": hosts["reality"],
                     "utls": {"enabled": True, "fingerprint": "chrome"},
                     "reality": {
                         "enabled": True,
@@ -154,22 +178,30 @@ def build_client_config(creds, server_ip):
             {
                 "type": "tuic",
                 "tag": "tuic-out",
-                "server": server_ip,
+                "server": hosts["tuic"],
                 "server_port": 9443,
                 "uuid": creds["uuid"],
                 "password": creds["pwd_tuic"],
                 "congestion_control": "bbr",
                 "udp_relay_mode": "quic",
-                "tls": {"enabled": True, "server_name": "react.dev", "insecure": True},
+                "tls": {
+                    "enabled": True,
+                    "server_name": hosts["tuic"],
+                    "insecure": True,
+                },
             },
             {
                 "type": "hysteria2",
                 "tag": "hy2-out",
-                "server": server_ip,
+                "server": hosts["hy2"],
                 "server_port": 7443,
                 "obfs": {"type": "salamander", "password": creds["pwd_obfs"]},
                 "password": creds["pwd_hy2"],
-                "tls": {"enabled": True, "server_name": "bing.com", "insecure": True},
+                "tls": {
+                    "enabled": True,
+                    "server_name": hosts["hy2"],
+                    "insecure": True,
+                },
             },
             {"type": "direct", "tag": "direct"},
         ],

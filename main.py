@@ -1,4 +1,5 @@
 import importlib
+import os
 import time
 import urllib.request
 from urllib.error import URLError
@@ -30,7 +31,15 @@ def refresh_required_files():
             raise RuntimeError(f"bootstrap download failed: {name}: {e}") from e
 
 
+def should_refresh_from_remote():
+    # If running inside a cloned repository, keep local files and skip bootstrap overwrite.
+    return not os.path.isdir(".git")
+
+
 if __name__ == "__main__":
-    refresh_required_files()
+    if should_refresh_from_remote():
+        refresh_required_files()
+    else:
+        print("[bootstrap] local repository detected, skip remote refresh")
     deploy = importlib.import_module("deploy")
     raise SystemExit(deploy.main())
