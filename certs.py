@@ -1,5 +1,6 @@
 import os
 import shlex
+import socket
 import subprocess
 
 from config import HY2_CERT_PATH, HY2_KEY_PATH, TUIC_CERT_PATH, TUIC_KEY_PATH
@@ -9,6 +10,9 @@ ACME_SH_PATH = "/root/.acme.sh/acme.sh"
 ACME_INSTALL_URL = "https://get.acme.sh"
 ACME_CA = "letsencrypt"
 CERT_VALIDITY_WINDOW = 30 * 24 * 3600
+ACME_WEBROOT = "/var/www/html"
+CF_TOKEN_ENV = "CF_Token"
+CF_ZONE_ID_ENV = "CF_Zone_ID"
 
 
 def _q(value):
@@ -24,6 +28,28 @@ def _command_exists(cmd):
         text=True,
     )
     return result.returncode == 0
+
+
+def _port_listening(port, host="127.0.0.1"):
+    try:
+        with socket.create_connection((host, port), timeout=1):
+            return True
+    except OSError:
+        return False
+
+
+def _has_cloudflare_dns_credentials():
+    return bool(os.environ.get(CF_TOKEN_ENV) and os.environ.get(CF_ZONE_ID_ENV))
+
+
+def _choose_challenge_mode():
+    if _has_cloudflare_dns_credentials():
+        return "dns_cf"
+
+    if os.path.isdir(ACME_WEBROOT) and _port_listening(80):
+        return "webroot"
+
+    return "standalone"
 
 
 def _cert_is_valid_for_host(cert_path, host):
@@ -100,6 +126,16 @@ def _ensure_socat():
     raise RuntimeError("未检测到可用包管理器，无法自动安装 socat")
 
 
+def _ensure_webroot_ready():
+    if not os.path.isdir(ACME_WEBROOT):
+        raise RuntimeError(
+            f"检测到 webroot 模式但目录不存在: {ACME_WEBROOT}；"
+            "请先部署并配置 nginx 站点根目录"
+        )
+    if not _port_listening(80):
+        raise RuntimeError("检测到 webroot 模式但 80 端口未监听；请先启动 nginx")
+
+
 def _resolve_acme_sh():
     if os.path.isfile(ACME_SH_PATH):
         return ACME_SH_PATH
@@ -116,7 +152,7 @@ def _resolve_acme_sh():
     raise RuntimeError("acme.sh 安装失败")
 
 
-def _issue_and_install_cert(acme_sh, host, cert_path, key_path):
+def _issue_and_install_cert(acme_sh, host, cert_path, key_path, challenge_mode):
     os.makedirs(os.path.dirname(cert_path), exist_ok=True)
     os.makedirs(os.path.dirname(key_path), exist_ok=True)
 
@@ -126,7 +162,24 @@ def _issue_and_install_cert(acme_sh, host, cert_path, key_path):
 
     print(f"签发/更新证书: {host}")
     run_cmd(f"{_q(acme_sh)} --set-default-ca --server {ACME_CA}")
-    run_cmd(f"{_q(acme_sh)} --issue --standalone -d {_q(host)} --keylength ec-256 --server {ACME_CA}")
+
+    if challenge_mode == "dns_cf":
+        cf_token = os.environ.get(CF_TOKEN_ENV, "")
+        cf_zone_id = os.environ.get(CF_ZONE_ID_ENV, "")
+        run_cmd(
+            f"{CF_TOKEN_ENV}={_q(cf_token)} {CF_ZONE_ID_ENV}={_q(cf_zone_id)} "
+            f"{_q(acme_sh)} --issue --dns dns_cf -d {_q(host)} --keylength ec-256 --server {ACME_CA}"
+        )
+    elif challenge_mode == "webroot":
+        run_cmd(
+            f"{_q(acme_sh)} --issue --webroot {_q(ACME_WEBROOT)} "
+            f"-d {_q(host)} --keylength ec-256 --server {ACME_CA}"
+        )
+    else:
+        run_cmd(
+            f"{_q(acme_sh)} --issue --standalone -d {_q(host)} --keylength ec-256 --server {ACME_CA}"
+        )
+
     run_cmd(
         f"{_q(acme_sh)} --install-cert -d {_q(host)} --ecc "
         f"--fullchain-file {_q(cert_path)} "
@@ -142,7 +195,21 @@ def ensure_tls_certificates(protocol_hosts):
             raise RuntimeError(f"protocol_hosts 缺少 {key} 域名")
 
     _ensure_openssl()
-    _ensure_socat()
+    challenge_mode = _choose_challenge_mode()
+    if challenge_mode == "dns_cf":
+        print("证书挑战方式: Cloudflare DNS-01 (dns_cf)")
+    elif challenge_mode == "webroot":
+        print(f"证书挑战方式: HTTP-01 webroot ({ACME_WEBROOT})")
+        _ensure_webroot_ready()
+    else:
+        if _port_listening(80):
+            raise RuntimeError(
+                "80 端口已被占用且未启用 nginx webroot；"
+                "请改用 Cloudflare DNS-01 或先配置 nginx + webroot"
+            )
+        print("证书挑战方式: HTTP-01 standalone (临时占用 80 端口)")
+        _ensure_socat()
+
     acme_sh = _resolve_acme_sh()
 
     _issue_and_install_cert(
@@ -150,10 +217,12 @@ def ensure_tls_certificates(protocol_hosts):
         host=protocol_hosts["tuic"],
         cert_path=TUIC_CERT_PATH,
         key_path=TUIC_KEY_PATH,
+        challenge_mode=challenge_mode,
     )
     _issue_and_install_cert(
         acme_sh=acme_sh,
         host=protocol_hosts["hy2"],
         cert_path=HY2_CERT_PATH,
         key_path=HY2_KEY_PATH,
+        challenge_mode=challenge_mode,
     )

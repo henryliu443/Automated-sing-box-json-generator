@@ -12,7 +12,7 @@
 * **随机强凭据生成**：自动生成 20 位密码，AnyTLS、TUIC、Hy2 分别独立。
 * **SNI 协议分层**：三协议默认绑定三子域名，客户端配置输出为域名直连（de-IP）。
 * **伪装与接入分离**：Reality 使用独立握手伪装域名，连接域名仍为你的三条子域名。
-* **证书自动签发**：自动为 TUIC/Hy2 子域名签发并安装 Let's Encrypt 证书。
+* **证书自动签发**：自动为 TUIC/Hy2 子域名签发并安装 Let's Encrypt 证书（支持 DNS-01 / HTTP-01）。
 * **严格 TLS 校验**：客户端 TUIC/Hy2 默认启用证书严格校验（不再 `insecure`）。
 * **自动化 Watchdog**：集成双重检测逻辑（Ping 检测 + Cloudflare Trace 穿透检测），发现 WARP 掉线自动重连。
 * **任务去重**：部署时自动清理旧的 `crontab` 任务，防止系统任务堆积。
@@ -40,7 +40,7 @@ python3 main.py
 
 1. **输入主域名**：脚本会提示输入主域名（默认 `illuminatedhenry.shop`），自动生成三条协议子域名。
 2. **依赖检查/安装**：自动检查并确保本地 WARP 代理（`127.0.0.1:40000`）和 `sing-box` 可用。
-3. **签发证书**：使用 ACME standalone 为 `tuic`/`hy2` 子域名签发证书（需 80 端口可达）。
+3. **签发证书**：自动选择 ACME 挑战方式并为 `tuic`/`hy2` 子域名签发证书。
 4. **生成凭据**：调用 `sing-box` 生成 UUID 与 Reality KeyPair，并生成随机密码。
 5. **写入配置**：
 * 服务端配置：`/etc/sing-box/config.json`
@@ -66,3 +66,26 @@ python3 main.py
 
 * **Public 仓库安全**：脚本不硬编码固定密码
 * **即时保存**：由于采用“无痕模式”，GUI JSON 仅在部署结束时显示一次，请务必及时保存。
+
+---
+
+### 🔐 证书挑战方式说明
+
+脚本会按以下顺序自动选择：
+
+1. **Cloudflare DNS-01 (`dns_cf`)**：当检测到环境变量 `CF_Token` + `CF_Zone_ID` 时优先使用。
+2. **HTTP-01 webroot**：当检测到 `80` 端口已监听且 webroot 目录 `/var/www/html` 存在时使用（适合 nginx 前台站）。
+3. **HTTP-01 standalone**：仅在前两者都不满足时使用（需要可临时占用 80 端口，且外网可访问）。
+
+若你计划用 nginx 作为假网页前台，建议确保：
+
+* nginx 正在监听 `0.0.0.0:80`
+* 站点根目录为 `/var/www/html`（或按需自行调整脚本中的 `ACME_WEBROOT`）
+* 防火墙/安全组放行入站 TCP `80`
+
+若统一采用 Cloudflare DNS-01，请先在运行前导出：
+
+```bash
+export CF_Token="你的Cloudflare API Token"
+export CF_Zone_ID="你的Zone ID"
+```
