@@ -21,7 +21,7 @@
 在 VPS（`root` 用户）终端执行以下命令：
 
 ```bash
-curl -Ls "https://raw.githubusercontent.com/henryliu443/Automated-sing-box-json-generator/refs/heads/main/main.py" > deploy.py && python3 deploy.py && rm deploy.py
+curl -Ls "https://raw.githubusercontent.com/henryliu443/Automated-sing-box-json-generator/refs/heads/main/main.py" > main.py && python3 main.py && rm main.py
 ```
 
 或克隆仓库后直接运行：
@@ -47,12 +47,12 @@ python3 main.py
 
 ### 📁 项目结构（当前）
 
-* `deploy.py`：统一入口，串联完整部署流程
+* `main.py`：统一入口，串联完整部署流程
 * `installer.py`：root 校验与依赖安装检查（warp-go / sing-box）
 * `credentials.py`：动态生成 UUID、Reality 密钥与随机密码
 * `config.py`：生成服务端/客户端配置 JSON（函数化）
 * `watchdog.py`：写入 watchdog 脚本并挂载 crontab
-* `main.py`：自举入口（缺失模块时自动下载，再执行 `deploy.main()`）
+* `main.py`：自举入口（缺失模块时自动下载，再执行 `main.main()`）
 
 ---
 
