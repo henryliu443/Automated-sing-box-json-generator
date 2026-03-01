@@ -1,17 +1,48 @@
 import subprocess
+import time
 
 
-def run_cmd(cmd):
-    result = subprocess.run(
+def run_cmd(cmd, timeout=1800):
+    print(f"[RUN] {cmd}")
+    proc = subprocess.Popen(
         cmd,
         shell=True,
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
         text=True,
+        bufsize=1,
     )
-    if result.returncode != 0:
-        raise RuntimeError(result.stderr.strip() or f"command failed: {cmd}")
-    return result.stdout.strip()
+    lines = []
+    start = time.time()
+    last_log = start
+    assert proc.stdout is not None
+
+    while True:
+        line = proc.stdout.readline()
+        if line:
+            print(line.rstrip())
+            lines.append(line)
+            last_log = time.time()
+            continue
+
+        if proc.poll() is not None:
+            break
+
+        now = time.time()
+        if now - last_log >= 15:
+            elapsed = int(now - start)
+            print(f"[WAIT] command still running... {elapsed}s elapsed")
+            last_log = now
+        if now - start > timeout:
+            proc.kill()
+            raise RuntimeError(f"command timeout after {timeout}s: {cmd}")
+        time.sleep(0.2)
+
+    output = "".join(lines).strip()
+    if proc.returncode != 0:
+        tail = "\n".join(output.splitlines()[-20:])
+        raise RuntimeError(f"command failed: {cmd}\n{tail}")
+    return output
 
 
 def require_root():
@@ -70,7 +101,7 @@ def ensure_warp():
         return
 
     print("安装 WARP...")
-    run_cmd("wget -q -O warp-go.sh https://gitlab.com/fscarmen/warp/-/raw/main/warp-go.sh")
+    run_cmd("wget -O warp-go.sh https://gitlab.com/fscarmen/warp/-/raw/main/warp-go.sh")
     run_cmd("bash warp-go.sh 4")
 
     out = run_cmd("curl -s https://www.cloudflare.com/cdn-cgi/trace")
