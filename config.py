@@ -1,4 +1,12 @@
 DOMAIN_ROOT = "illuminatedhenry.shop"
+REALITY_DECOY_SERVER = "www.cloudflare.com"
+REALITY_DECOY_PORT = 443
+HY2_MASQUERADE_URL = "https://www.cloudflare.com"
+
+TUIC_CERT_PATH = "/etc/sing-box-tuic/certs/tuic.crt"
+TUIC_KEY_PATH = "/etc/sing-box-tuic/certs/tuic.key"
+HY2_CERT_PATH = "/etc/hysteria/server.crt"
+HY2_KEY_PATH = "/etc/hysteria/server.key"
 
 # SNI segmented domain mapping:
 # jx1xfnke -> reality, t7mmubf0 -> hy2, xts6e4iz -> tuic
@@ -46,7 +54,10 @@ def build_server_config(creds, protocol_hosts=None):
                     "server_name": hosts["reality"],
                     "reality": {
                         "enabled": True,
-                        "handshake": {"server": "react.dev", "server_port": 443},
+                        "handshake": {
+                            "server": REALITY_DECOY_SERVER,
+                            "server_port": REALITY_DECOY_PORT,
+                        },
                         "private_key": creds["private_key"],
                         "short_id": "0123456789abcdef",
                     },
@@ -63,8 +74,8 @@ def build_server_config(creds, protocol_hosts=None):
                 "tls": {
                     "enabled": True,
                     "server_name": hosts["tuic"],
-                    "certificate_path": "/etc/sing-box-tuic/certs/tuic.crt",
-                    "key_path": "/etc/sing-box-tuic/certs/tuic.key",
+                    "certificate_path": TUIC_CERT_PATH,
+                    "key_path": TUIC_KEY_PATH,
                 },
             },
             {
@@ -75,12 +86,12 @@ def build_server_config(creds, protocol_hosts=None):
                 "users": [{"password": creds["pwd_hy2"]}],
                 "ignore_client_bandwidth": True,
                 "obfs": {"type": "salamander", "password": creds["pwd_obfs"]},
-                "masquerade": "https://bing.com",
+                "masquerade": HY2_MASQUERADE_URL,
                 "tls": {
                     "enabled": True,
                     "server_name": hosts["hy2"],
-                    "certificate_path": "/etc/hysteria/server.crt",
-                    "key_path": "/etc/hysteria/server.key",
+                    "certificate_path": HY2_CERT_PATH,
+                    "key_path": HY2_KEY_PATH,
                 },
             },
         ],
@@ -187,7 +198,6 @@ def build_client_config(creds, protocol_hosts=None):
                 "tls": {
                     "enabled": True,
                     "server_name": hosts["tuic"],
-                    "insecure": True,
                 },
             },
             {
@@ -200,7 +210,6 @@ def build_client_config(creds, protocol_hosts=None):
                 "tls": {
                     "enabled": True,
                     "server_name": hosts["hy2"],
-                    "insecure": True,
                 },
             },
             {"type": "direct", "tag": "direct"},

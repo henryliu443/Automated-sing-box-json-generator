@@ -1,11 +1,34 @@
 import json
 import os
+import re
 import subprocess
 
-from config import DOMAIN_ROOT, build_client_config, build_protocol_hosts, build_server_config
+from certs import ensure_tls_certificates
+from config import (
+    DOMAIN_ROOT,
+    REALITY_DECOY_SERVER,
+    build_client_config,
+    build_protocol_hosts,
+    build_server_config,
+)
 from credentials import generate_credentials
 from installer import ensure_dependencies
 from watchdog import deploy_watchdog
+
+DOMAIN_RE = re.compile(
+    r"^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$"
+)
+
+
+def normalize_domain_input(raw):
+    value = raw.strip().lower()
+    if "://" in value:
+        value = value.split("://", 1)[1]
+    value = value.split("/", 1)[0].split(":", 1)[0].strip().strip(".")
+    domain = value or DOMAIN_ROOT
+    if not DOMAIN_RE.fullmatch(domain):
+        raise RuntimeError(f"域名格式不合法: {domain}")
+    return domain
 
 
 def main():
@@ -13,14 +36,21 @@ def main():
     print("Sing-box & Watchdog 一键部署")
     print("🚀" * 10)
 
-    domain_input = input(f"请输入主域名 (默认: {DOMAIN_ROOT}): ").strip()
-    if "://" in domain_input:
-        domain_input = domain_input.split("://", 1)[1]
-    domain_root = domain_input.split("/", 1)[0].strip().strip(".") or DOMAIN_ROOT
+    try:
+        domain_root = normalize_domain_input(input(f"请输入主域名 (默认: {DOMAIN_ROOT}): "))
+    except RuntimeError as e:
+        print(str(e))
+        return 1
     protocol_hosts = build_protocol_hosts(domain_root)
 
     try:
         ensure_dependencies()
+    except RuntimeError as e:
+        print(str(e))
+        return 1
+
+    try:
+        ensure_tls_certificates(protocol_hosts)
     except RuntimeError as e:
         print(str(e))
         return 1
@@ -43,6 +73,7 @@ def main():
     print(f"  reality -> {protocol_hosts['reality']}")
     print(f"  hy2     -> {protocol_hosts['hy2']}")
     print(f"  tuic    -> {protocol_hosts['tuic']}")
+    print(f"Reality 伪装握手域名 -> {REALITY_DECOY_SERVER}")
     print("\n" + "=" * 20 + " 请全选复制客户端 JSON " + "=" * 20)
     print(json.dumps(cl_cfg, indent=2, ensure_ascii=False))
     print("=" * 60)

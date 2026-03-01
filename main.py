@@ -8,6 +8,7 @@ BASE_URL = "https://raw.githubusercontent.com/henryliu443/Automated-sing-box-jso
 REQUIRED_FILES = [
     "deploy.py",
     "config.py",
+    "certs.py",
     "installer.py",
     "credentials.py",
     "watchdog.py",

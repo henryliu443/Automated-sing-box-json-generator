@@ -11,6 +11,9 @@
 
 * **随机强凭据生成**：自动生成 20 位密码，AnyTLS、TUIC、Hy2 分别独立。
 * **SNI 协议分层**：三协议默认绑定三子域名，客户端配置输出为域名直连（de-IP）。
+* **伪装与接入分离**：Reality 使用独立握手伪装域名，连接域名仍为你的三条子域名。
+* **证书自动签发**：自动为 TUIC/Hy2 子域名签发并安装 Let's Encrypt 证书。
+* **严格 TLS 校验**：客户端 TUIC/Hy2 默认启用证书严格校验（不再 `insecure`）。
 * **自动化 Watchdog**：集成双重检测逻辑（Ping 检测 + Cloudflare Trace 穿透检测），发现 WARP 掉线自动重连。
 * **任务去重**：部署时自动清理旧的 `crontab` 任务，防止系统任务堆积。
 * **配置模块化**：安装检查、凭据生成、配置生成、Watchdog 部署已拆分为独立模块。
@@ -37,12 +40,13 @@ python3 main.py
 
 1. **输入主域名**：脚本会提示输入主域名（默认 `illuminatedhenry.shop`），自动生成三条协议子域名。
 2. **依赖检查/安装**：自动检查并确保本地 WARP 代理（`127.0.0.1:40000`）和 `sing-box` 可用。
-3. **生成凭据**：调用 `sing-box` 生成 UUID 与 Reality KeyPair，并生成随机密码。
-4. **写入配置**：
+3. **签发证书**：使用 ACME standalone 为 `tuic`/`hy2` 子域名签发证书（需 80 端口可达）。
+4. **生成凭据**：调用 `sing-box` 生成 UUID 与 Reality KeyPair，并生成随机密码。
+5. **写入配置**：
 * 服务端配置：`/etc/sing-box/config.json`
 * 守护脚本：`/root/warp_lazy_watchdog.sh`
-5. **挂载定时任务**：每 60 秒执行一次 Watchdog，自动去重旧任务。
-6. **重启与输出**：重启 `sing-box`，并在终端打印客户端 GUI JSON（已是域名版）。
+6. **挂载定时任务**：每 60 秒执行一次 Watchdog，自动去重旧任务。
+7. **重启与输出**：重启 `sing-box`，并在终端打印客户端 GUI JSON（已是域名版）。
 
 ---
 
@@ -52,6 +56,7 @@ python3 main.py
 * `installer.py`：root 校验与依赖安装检查（WARP 本地代理 / sing-box）
 * `credentials.py`：动态生成 UUID、Reality 密钥与随机密码
 * `config.py`：生成服务端/客户端配置 JSON（函数化）
+* `certs.py`：ACME 证书签发与安装（TUIC/Hy2）
 * `watchdog.py`：写入 watchdog 脚本并挂载 crontab
 * `main.py`：自举入口（每次启动都会刷新模块，再执行 `deploy.main()`）
 
