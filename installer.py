@@ -1,5 +1,6 @@
 import subprocess
 import time
+import select
 
 
 def run_cmd(cmd, timeout=1800):
@@ -16,29 +17,40 @@ def run_cmd(cmd, timeout=1800):
     start = time.time()
     last_log = start
     assert proc.stdout is not None
+    spinner = "|/-\\"
+    spin_idx = 0
 
     while True:
-        line = proc.stdout.readline()
-        if line:
-            print(line.rstrip())
-            lines.append(line)
-            last_log = time.time()
-            continue
+        ready, _, _ = select.select([proc.stdout], [], [], 1.0)
+        if ready:
+            line = proc.stdout.readline()
+            if line:
+                print("\r" + " " * 80 + "\r", end="", flush=True)
+                print(line.rstrip(), flush=True)
+                lines.append(line)
+                last_log = time.time()
 
         if proc.poll() is not None:
             break
 
         now = time.time()
-        if now - last_log >= 15:
-            elapsed = int(now - start)
-            print(f"[WAIT] command still running... {elapsed}s elapsed")
+        elapsed = int(now - start)
+        # Always print a live heartbeat so long-running installers never look frozen.
+        if now - last_log >= 1:
+            print(
+                f"\r[WAIT] {spinner[spin_idx % len(spinner)]} command running... {elapsed}s",
+                end="",
+                flush=True,
+            )
+            spin_idx += 1
             last_log = now
         if now - start > timeout:
             proc.kill()
+            print("\r" + " " * 80 + "\r", end="", flush=True)
             raise RuntimeError(f"command timeout after {timeout}s: {cmd}")
-        time.sleep(0.2)
 
     output = "".join(lines).strip()
+    print("\r" + " " * 80 + "\r", end="", flush=True)
     if proc.returncode != 0:
         tail = "\n".join(output.splitlines()[-20:])
         raise RuntimeError(f"command failed: {cmd}\n{tail}")
