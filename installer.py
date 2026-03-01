@@ -63,9 +63,9 @@ def require_root():
         raise RuntimeError("请使用 root 运行")
 
 
-def warp_active():
+def warp_active(service):
     result = subprocess.run(
-        "systemctl is-active warp-go",
+        f"systemctl is-active {service}",
         shell=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -107,18 +107,21 @@ def ensure_warp():
         print("WARP 代理已就绪，跳过安装")
         return
 
-    # Fallback compatibility check for users who manage warp-go via systemd.
-    if warp_active():
-        print("warp-go 服务已运行")
-        return
+    # Existing WARP service is up but proxy is unavailable: fail fast with guidance.
+    active_services = [svc for svc in ("warp-go", "warp-svc") if warp_active(svc)]
+    if active_services:
+        services = ", ".join(active_services)
+        raise RuntimeError(
+            f"WARP 服务已运行({services})，但 127.0.0.1:40000 代理不可用；"
+            "请先开启 WARP 本地代理后再重试"
+        )
 
     print("安装 WARP...")
     run_cmd("wget -O warp-go.sh https://gitlab.com/fscarmen/warp/-/raw/main/warp-go.sh")
     run_cmd("bash warp-go.sh 4")
 
-    out = run_cmd("curl -s https://www.cloudflare.com/cdn-cgi/trace")
-    if "warp=on" not in out and "warp=plus" not in out:
-        raise RuntimeError("WARP 验证失败")
+    if not warp_proxy_ready():
+        raise RuntimeError("WARP 安装后代理仍不可用(127.0.0.1:40000)")
 
 
 def ensure_singbox():

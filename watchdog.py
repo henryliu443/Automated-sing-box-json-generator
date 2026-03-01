@@ -23,6 +23,30 @@ check_warp_tunnel() {
     curl -s --proxy "$WARP_PROXY" --max-time 5 "$CHECK_URL" | grep -q "colo="
 }
 
+recover_warp() {
+    # 1) Prefer official warp-cli when available.
+    if command -v warp-cli >/dev/null 2>&1; then
+        warp-cli disconnect >/dev/null 2>&1 || true
+        sleep 2
+        warp-cli connect >/dev/null 2>&1 || true
+        sleep 2
+        check_warp_tunnel && return 0
+    fi
+
+    # 2) Fallback to restarting known services.
+    if command -v systemctl >/dev/null 2>&1; then
+        for svc in warp-go warp-svc; do
+            if systemctl status "$svc" >/dev/null 2>&1; then
+                systemctl restart "$svc" >/dev/null 2>&1 || true
+                sleep 2
+                check_warp_tunnel && return 0
+            fi
+        done
+    fi
+
+    return 1
+}
+
 if ! check_native_net; then
     echo "$(date): [静默] 本地网络无法连通 8.8.8.8，跳过 WARP 检测。" >> "$LOG_FILE"
     exit 0
@@ -46,9 +70,11 @@ echo "$NEXT_FAIL" > "$FAIL_COUNT_FILE"
 
 if [ "$NEXT_FAIL" -ge "$MAX_RETRIES" ]; then
     echo "$(date): [动作] 连续失败 $NEXT_FAIL 次，执行修复..." >> "$LOG_FILE"
-    warp-cli disconnect > /dev/null 2>&1
-    sleep 2
-    warp-cli connect > /dev/null 2>&1
+    if recover_warp; then
+        echo "$(date): [恢复] WARP 修复动作执行成功。" >> "$LOG_FILE"
+    else
+        echo "$(date): [失败] WARP 修复动作执行后仍未恢复。" >> "$LOG_FILE"
+    fi
     rm -f "$FAIL_COUNT_FILE"
 else
     echo "$(date): [观察] WARP 探测失败 (第 $NEXT_FAIL 次)，暂不操作。" >> "$LOG_FILE"

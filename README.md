@@ -35,7 +35,7 @@ python3 main.py
 ### 🛠️ 部署逻辑说明
 
 1. **输入 IP**：脚本启动后会提示输入当前服务器 IP。
-2. **依赖检查/安装**：自动检查并确保 `warp-go` 和 `sing-box` 可用。
+2. **依赖检查/安装**：自动检查并确保本地 WARP 代理（`127.0.0.1:40000`）和 `sing-box` 可用。
 3. **生成凭据**：调用 `sing-box` 生成 UUID 与 Reality KeyPair，并生成随机密码。
 4. **写入配置**：
 * 服务端配置：`/etc/sing-box/config.json`
@@ -48,7 +48,7 @@ python3 main.py
 ### 📁 项目结构（当前）
 
 * `deploy.py`：核心部署流程（依赖检查、写配置、挂 watchdog、重启）
-* `installer.py`：root 校验与依赖安装检查（warp-go / sing-box）
+* `installer.py`：root 校验与依赖安装检查（WARP 本地代理 / sing-box）
 * `credentials.py`：动态生成 UUID、Reality 密钥与随机密码
 * `config.py`：生成服务端/客户端配置 JSON（函数化）
 * `watchdog.py`：写入 watchdog 脚本并挂载 crontab
