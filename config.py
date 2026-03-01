@@ -121,11 +121,11 @@ def build_client_config(creds, protocol_hosts=None):
             "servers": [
                 {
                     "tag": "dns-remote",
-                    "address": "https://8.8.8.8/dns-query",
+                    "address": "8.8.8.8",
                 },
                 {
                     "tag": "dns-direct",
-                    "address": "https://223.5.5.5/dns-query",
+                    "address": "223.5.5.5",
                 },
                 {
                     "tag": "dns-block",
