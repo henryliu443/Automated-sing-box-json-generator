@@ -173,7 +173,7 @@ def build_client_config(creds, protocol_hosts=None):
                 "tls": {
                     "enabled": True,
                     "disable_sni": False,
-                    "server_name": hosts["reality"],
+                    "server_name": REALITY_DECOY_SERVER,
                     "insecure": False,
                     "utls": {"enabled": True, "fingerprint": "chrome"},
                     "reality": {
