@@ -74,7 +74,12 @@ python3 main.py
 
 当前仅使用 **Cloudflare DNS-01 (`dns_cf`)**。
 
-若统一采用 Cloudflare DNS-01，请先在运行前导出：
+脚本支持两种方式提供凭据：
+
+1. 运行时交互输入 `CF_Token` / `CF_Zone_ID`
+2. 运行前导出环境变量（自动读取）
+
+若你更喜欢环境变量方式，请在运行前导出：
 
 ```bash
 export CF_Token="你的Cloudflare API Token"

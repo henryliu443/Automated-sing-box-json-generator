@@ -28,9 +28,9 @@ def _command_exists(cmd):
     return result.returncode == 0
 
 
-def _ensure_dns_credentials():
-    token = os.environ.get(CF_TOKEN_ENV, "").strip()
-    zone_id = os.environ.get(CF_ZONE_ID_ENV, "").strip()
+def _ensure_dns_credentials(cf_token=None, cf_zone_id=None):
+    token = (cf_token or os.environ.get(CF_TOKEN_ENV, "")).strip()
+    zone_id = (cf_zone_id or os.environ.get(CF_ZONE_ID_ENV, "")).strip()
     if token and zone_id:
         return token, zone_id
     raise RuntimeError(
@@ -134,13 +134,13 @@ def _issue_and_install_cert(acme_sh, host, cert_path, key_path, cf_token, cf_zon
     run_cmd(f"chmod 600 {_q(key_path)}")
 
 
-def ensure_tls_certificates(protocol_hosts):
+def ensure_tls_certificates(protocol_hosts, cf_token=None, cf_zone_id=None):
     for key in ("tuic", "hy2"):
         if key not in protocol_hosts:
             raise RuntimeError(f"protocol_hosts 缺少 {key} 域名")
 
     _ensure_openssl()
-    cf_token, cf_zone_id = _ensure_dns_credentials()
+    cf_token, cf_zone_id = _ensure_dns_credentials(cf_token=cf_token, cf_zone_id=cf_zone_id)
     print("证书挑战方式: Cloudflare DNS-01 (dns_cf)")
     acme_sh = _resolve_acme_sh()
 

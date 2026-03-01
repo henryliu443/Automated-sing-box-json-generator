@@ -18,6 +18,8 @@ from watchdog import deploy_watchdog
 DOMAIN_RE = re.compile(
     r"^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$"
 )
+CF_TOKEN_ENV = "CF_Token"
+CF_ZONE_ID_ENV = "CF_Zone_ID"
 
 
 def normalize_domain_input(raw):
@@ -29,6 +31,20 @@ def normalize_domain_input(raw):
     if not DOMAIN_RE.fullmatch(domain):
         raise RuntimeError(f"域名格式不合法: {domain}")
     return domain
+
+
+def resolve_cf_dns_credentials():
+    token = os.environ.get(CF_TOKEN_ENV, "").strip()
+    zone_id = os.environ.get(CF_ZONE_ID_ENV, "").strip()
+
+    if not token:
+        token = input(f"请输入 Cloudflare API Token ({CF_TOKEN_ENV}): ").strip()
+    if not zone_id:
+        zone_id = input(f"请输入 Cloudflare Zone ID ({CF_ZONE_ID_ENV}): ").strip()
+
+    if not token or not zone_id:
+        raise RuntimeError("Cloudflare DNS-01 凭据不能为空")
+    return token, zone_id
 
 
 def main():
@@ -44,13 +60,19 @@ def main():
     protocol_hosts = build_protocol_hosts(domain_root)
 
     try:
+        cf_token, cf_zone_id = resolve_cf_dns_credentials()
+    except RuntimeError as e:
+        print(str(e))
+        return 1
+
+    try:
         ensure_dependencies()
     except RuntimeError as e:
         print(str(e))
         return 1
 
     try:
-        ensure_tls_certificates(protocol_hosts)
+        ensure_tls_certificates(protocol_hosts, cf_token=cf_token, cf_zone_id=cf_zone_id)
     except RuntimeError as e:
         print(str(e))
         return 1
