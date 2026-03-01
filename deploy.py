@@ -47,6 +47,16 @@ def resolve_cf_dns_credentials():
     return token, zone_id
 
 
+def run_tls_issuance(protocol_hosts, cf_token, cf_zone_id):
+    # Always set env for backward compatibility with older certs.py versions.
+    os.environ[CF_TOKEN_ENV] = cf_token
+    os.environ[CF_ZONE_ID_ENV] = cf_zone_id
+    try:
+        ensure_tls_certificates(protocol_hosts, cf_token=cf_token, cf_zone_id=cf_zone_id)
+    except TypeError:
+        ensure_tls_certificates(protocol_hosts)
+
+
 def main():
     print("\n" + "🚀" * 10)
     print("Sing-box & Watchdog 一键部署")
@@ -72,7 +82,7 @@ def main():
         return 1
 
     try:
-        ensure_tls_certificates(protocol_hosts, cf_token=cf_token, cf_zone_id=cf_zone_id)
+        run_tls_issuance(protocol_hosts, cf_token, cf_zone_id)
     except RuntimeError as e:
         print(str(e))
         return 1
