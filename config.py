@@ -159,7 +159,6 @@ def build_client_config(creds, protocol_hosts=None):
                 "tag": "性能池-自动负载",
                 "outbounds": ["tuic-out", "hy2-out", "anytls-out"],
                 "url": "https://www.gstatic.com/generate_204",
-                "timeout": "5s",
                 "interval": "10m0s",
                 "tolerance": 50,
             },
