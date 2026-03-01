@@ -31,6 +31,22 @@ def warp_active():
     return result.stdout.strip() == "active"
 
 
+def warp_proxy_ready():
+    cmd = (
+        'curl -s --proxy "socks5h://127.0.0.1:40000" --max-time 6 '
+        "https://www.cloudflare.com/cdn-cgi/trace"
+    )
+    result = subprocess.run(
+        cmd,
+        shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    out = result.stdout
+    return result.returncode == 0 and ("warp=on" in out or "warp=plus" in out)
+
+
 def singbox_installed():
     result = subprocess.run(
         "which sing-box",
@@ -43,8 +59,14 @@ def singbox_installed():
 
 
 def ensure_warp():
+    # Prefer functional check: if local SOCKS5 WARP proxy works, no install needed.
+    if warp_proxy_ready():
+        print("WARP 代理已就绪，跳过安装")
+        return
+
+    # Fallback compatibility check for users who manage warp-go via systemd.
     if warp_active():
-        print("WARP 已运行")
+        print("warp-go 服务已运行")
         return
 
     print("安装 WARP...")
