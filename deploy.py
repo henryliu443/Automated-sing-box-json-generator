@@ -5,7 +5,6 @@ import subprocess
 
 from certs import ensure_tls_certificates
 from config import (
-    DOMAIN_ROOT,
     REALITY_DECOY_SERVER,
     build_client_config,
     build_protocol_hosts,
@@ -27,7 +26,9 @@ def normalize_domain_input(raw):
     if "://" in value:
         value = value.split("://", 1)[1]
     value = value.split("/", 1)[0].split(":", 1)[0].strip().strip(".")
-    domain = value or DOMAIN_ROOT
+    if not value:
+        raise RuntimeError("主域名不能为空")
+    domain = value
     if not DOMAIN_RE.fullmatch(domain):
         raise RuntimeError(f"域名格式不合法: {domain}")
     return domain
@@ -63,7 +64,7 @@ def main():
     print("🚀" * 10)
 
     try:
-        domain_root = normalize_domain_input(input(f"请输入主域名 (默认: {DOMAIN_ROOT}): "))
+        domain_root = normalize_domain_input(input("请输入主域名: "))
     except RuntimeError as e:
         print(str(e))
         return 1

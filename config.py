@@ -1,5 +1,3 @@
-DOMAIN_ROOT = "illuminatedhenry.shop"
-
 REALITY_DECOY_SERVER = "react.dev"
 
 REALITY_DECOY_PORT = 443
@@ -19,21 +17,10 @@ HY2_KEY_PATH = "/etc/hysteria/server.key"
 
 
 # SNI segmented domain mapping:
-
 # jx1xfnke -> reality, t7mmubf0 -> hy2, xts6e4iz -> tuic
-
-PROTOCOL_HOSTS = {
-
-    "reality": f"jx1xfnke.{DOMAIN_ROOT}",
-
-    "hy2": f"t7mmubf0.{DOMAIN_ROOT}",
-
-    "tuic": f"xts6e4iz.{DOMAIN_ROOT}",
-
-}
-
-
-def build_protocol_hosts(domain_root=DOMAIN_ROOT):
+def build_protocol_hosts(domain_root):
+    if not domain_root or not domain_root.strip():
+        raise ValueError("domain_root is required")
 
     root = domain_root.strip().lower().rstrip(".")
 
@@ -49,8 +36,9 @@ def build_protocol_hosts(domain_root=DOMAIN_ROOT):
 
 
 def build_server_config(creds, protocol_hosts=None):
-
-    hosts = protocol_hosts or PROTOCOL_HOSTS
+    if not protocol_hosts:
+        raise ValueError("protocol_hosts is required")
+    hosts = protocol_hosts
 
     return {
 
@@ -220,8 +208,9 @@ def build_server_config(creds, protocol_hosts=None):
 
 
 def build_client_config(creds, protocol_hosts=None):
-
-    hosts = protocol_hosts or PROTOCOL_HOSTS
+    if not protocol_hosts:
+        raise ValueError("protocol_hosts is required")
+    hosts = protocol_hosts
 
     return {
 

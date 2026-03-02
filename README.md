@@ -39,7 +39,7 @@ python3 main.py
 
 ### 🛠️ 部署逻辑说明
 
-1. **输入主域名**：脚本会提示输入主域名（默认 `illuminatedhenry.shop`），自动生成三条协议子域名。
+1. **输入主域名**：脚本会提示输入主域名，自动生成三条协议子域名。
 2. **依赖检查/安装**：自动检查并确保 WARP、`sing-box` 可用。
 3. **签发证书**：通过 Cloudflare DNS-01 为 `tuic`/`hy2` 子域名签发证书。
 4. **生成凭据**：调用 `sing-box` 生成 UUID 与 Reality KeyPair，并生成随机密码。
