@@ -220,11 +220,19 @@ def build_client_config(creds, protocol_hosts=None):
 
             "servers": [
 
-                {"tag": "dns-remote", "address": "1.1.1.1", "detour": "direct"},
+                {
 
-                {"tag": "dns-remote-2", "address": "8.8.8.8", "detour": "direct"},
+                    "tag": "dns-proxy-doh",
 
-                {"tag": "dns-direct", "address": "223.5.5.5", "detour": "direct"},
+                    "address": "https://1.1.1.1/dns-query",
+
+                    "detour": "proxy-best",
+
+                },
+
+                {"tag": "dns-remote", "address": "223.5.5.5", "detour": "direct"},
+
+                {"tag": "dns-direct", "address": "119.29.29.29", "detour": "direct"},
 
                 {
 
@@ -240,13 +248,15 @@ def build_client_config(creds, protocol_hosts=None):
 
                 {"rule_set": "geosite-category-ads-all", "server": "dns-block"},
 
+                {"domain": [hosts["reality"], hosts["tuic"], hosts["hy2"]], "server": "dns-remote"},
+
                 {"rule_set": ["geosite-apple-cn", "geosite-cn"], "server": "dns-direct"},
 
-                {"rule_set": "geosite-geolocation-!cn", "server": "dns-remote"},
+                {"rule_set": "geosite-geolocation-!cn", "server": "dns-proxy-doh"},
 
             ],
 
-            "final": "dns-direct",
+            "final": "dns-remote",
 
             "strategy": "prefer_ipv4",
 
@@ -418,7 +428,7 @@ def build_client_config(creds, protocol_hosts=None):
 
                 {"rule_set": "geosite-category-ads-all", "action": "reject"},
 
-                {"ip_cidr": ["1.1.1.1/32", "8.8.8.8/32", "223.5.5.5/32"], "outbound": "direct"},
+                {"ip_cidr": ["1.1.1.1/32", "223.5.5.5/32", "119.29.29.29/32"], "outbound": "direct"},
 
                 {"ip_is_private": True, "outbound": "direct"},
 

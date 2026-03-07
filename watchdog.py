@@ -16,7 +16,7 @@ exec 9>"$LOCK_FILE"
 flock -n 9 || exit 0
 
 check_native_net() {
-    ping -c 2 -W 2 8.8.8.8 > /dev/null 2>&1
+    ping -c 2 -W 2 223.5.5.5 > /dev/null 2>&1
 }
 
 check_warp_tunnel() {
