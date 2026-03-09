@@ -14,6 +14,34 @@ HY2_CERT_PATH = "/etc/hysteria/server.crt"
 
 HY2_KEY_PATH = "/etc/hysteria/server.key"
 
+CN_FINANCE_DOMAIN_SUFFIXES = [
+    "95516.com",
+    "abchina.com",
+    "alipay.com",
+    "alipayobjects.com",
+    "bankcomm.com",
+    "boc.cn",
+    "ccb.com",
+    "ccb.com.cn",
+    "cebbank.com",
+    "chinaums.com",
+    "cib.com.cn",
+    "citicbank.com",
+    "cmbchina.com",
+    "cmbc.com.cn",
+    "ecitic.com",
+    "hxb.com.cn",
+    "icbc.com.cn",
+    "psbc.com",
+    "spdb.com.cn",
+    "tenpay.com",
+    "unionpay.com",
+    "unionpaysecure.com",
+    "wechatpay.com",
+]
+
+CN_FINANCE_DOMAIN_KEYWORDS = ["alipay", "tenpay", "unionpay", "wechatpay", "95516"]
+
 
 
 # SNI segmented domain mapping:
@@ -250,7 +278,16 @@ def build_client_config(creds, protocol_hosts=None):
 
                 {"domain": [hosts["reality"], hosts["tuic"], hosts["hy2"]], "server": "dns-remote"},
 
-                {"rule_set": ["geosite-apple-cn", "geosite-cn"], "server": "dns-direct"},
+                {
+                    "domain_suffix": CN_FINANCE_DOMAIN_SUFFIXES,
+                    "server": "dns-direct",
+                },
+
+                {"domain_keyword": CN_FINANCE_DOMAIN_KEYWORDS, "server": "dns-direct"},
+
+                {"rule_set": ["geosite-apple", "geosite-apple-cn", "geosite-cn", "geosite-geolocation-cn"], "server": "dns-direct"},
+
+                {"rule_set": "geosite-telegram", "server": "dns-proxy-doh"},
 
                 {"rule_set": "geosite-geolocation-!cn", "server": "dns-proxy-doh"},
 
@@ -432,13 +469,34 @@ def build_client_config(creds, protocol_hosts=None):
 
                 {"ip_is_private": True, "outbound": "direct"},
 
-                {"rule_set": ["geosite-apple-cn", "geosite-cn", "geoip-cn"], "outbound": "direct"},
+                {
+                    "domain_suffix": CN_FINANCE_DOMAIN_SUFFIXES,
+                    "outbound": "direct",
+                },
+
+                {"domain_keyword": CN_FINANCE_DOMAIN_KEYWORDS, "outbound": "direct"},
+
+                {"rule_set": ["geosite-telegram", "geoip-telegram"], "outbound": "proxy-best"},
+
+                {"rule_set": ["geosite-apple", "geosite-apple-cn", "geosite-cn", "geosite-geolocation-cn", "geoip-cn", "geoip-cn-asn"], "outbound": "direct"},
 
                 {"rule_set": "geosite-geolocation-!cn", "outbound": "proxy-best"},
 
             ],
 
             "rule_set": [
+
+                {
+
+                    "type": "remote",
+
+                    "tag": "geosite-apple",
+
+                    "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/apple.srs",
+
+                    "format": "binary",
+
+                },
 
                 {
 
@@ -468,6 +526,30 @@ def build_client_config(creds, protocol_hosts=None):
 
                     "type": "remote",
 
+                    "tag": "geosite-geolocation-cn",
+
+                    "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/geolocation-cn.srs",
+
+                    "format": "binary",
+
+                },
+
+                {
+
+                    "type": "remote",
+
+                    "tag": "geosite-telegram",
+
+                    "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/telegram.srs",
+
+                    "format": "binary",
+
+                },
+
+                {
+
+                    "type": "remote",
+
                     "tag": "geosite-geolocation-!cn",
 
                     "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/geolocation-!cn.srs",
@@ -480,9 +562,33 @@ def build_client_config(creds, protocol_hosts=None):
 
                     "type": "remote",
 
+                    "tag": "geoip-telegram",
+
+                    "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geoip/telegram.srs",
+
+                    "format": "binary",
+
+                },
+
+                {
+
+                    "type": "remote",
+
                     "tag": "geoip-cn",
 
                     "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geoip/cn.srs",
+
+                    "format": "binary",
+
+                },
+
+                {
+
+                    "type": "remote",
+
+                    "tag": "geoip-cn-asn",
+
+                    "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo-lite/geoip/cn.srs",
 
                     "format": "binary",
 

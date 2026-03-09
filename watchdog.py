@@ -48,7 +48,7 @@ recover_warp() {
 }
 
 if ! check_native_net; then
-    echo "$(date): [静默] 本地网络无法连通 8.8.8.8，跳过 WARP 检测。" >> "$LOG_FILE"
+    echo "$(date): [静默] 本地网络无法连通 223.5.5.5，跳过 WARP 检测。" >> "$LOG_FILE"
     exit 0
 fi
 
