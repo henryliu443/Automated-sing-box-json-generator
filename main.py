@@ -4,7 +4,33 @@ import time
 import urllib.request
 from urllib.error import URLError
 
-import cli_ui as ui
+try:
+    import cli_ui as ui
+except ModuleNotFoundError:
+    class _FallbackUI:
+        @staticmethod
+        def banner(title, subtitle=None):
+            print(f"=== {title} ===")
+            if subtitle:
+                print(subtitle)
+
+        @staticmethod
+        def step(message):
+            print(f"[STEP] {message}")
+
+        @staticmethod
+        def info(message):
+            print(f"[INFO] {message}")
+
+        @staticmethod
+        def error(message):
+            print(f"[ERR ] {message}")
+
+        @staticmethod
+        def success(message):
+            print(f"[ OK ] {message}")
+
+    ui = _FallbackUI()
 
 BASE_URL = "https://raw.githubusercontent.com/henryliu443/Automated-sing-box-json-generator/refs/heads/main"
 REQUIRED_FILES = [
