@@ -3,9 +3,11 @@ import select
 import subprocess
 import time
 
+import cli_ui as ui
+
 
 def run_cmd(cmd, timeout=1800):
-    print(f"[RUN] {cmd}")
+    ui.command(cmd)
     proc = subprocess.Popen(
         cmd,
         shell=True,
@@ -38,7 +40,8 @@ def run_cmd(cmd, timeout=1800):
         elapsed = int(now - start)
         if now - last_log >= 1:
             print(
-                f"\r[WAIT] {spinner[spin_idx % len(spinner)]} command running... {elapsed}s",
+                "\r"
+                + ui.status_text("WAIT", f"{spinner[spin_idx % len(spinner)]} command running... {elapsed}s"),
                 end="",
                 flush=True,
             )
@@ -78,7 +81,7 @@ def ensure_ss_tool():
     if command_exists("ss"):
         return
 
-    print("安装 ss 命令 (iproute2)...")
+    ui.step("安装 ss 命令 (iproute2)")
     if command_exists("apt-get"):
         run_cmd("DEBIAN_FRONTEND=noninteractive apt-get update")
         run_cmd("DEBIAN_FRONTEND=noninteractive apt-get install -y iproute2")
@@ -127,8 +130,8 @@ def assert_port_required(port, proto, required_owners):
 
 
 def print_port_snapshot():
-    print("当前端口监听快照 (ss -tulnp):")
-    print(run_cmd("ss -tulnp"))
+    ui.info("当前端口监听快照 (ss -tulnp)")
+    run_cmd("ss -tulnp")
 
 
 def ensure_port_safety():
@@ -184,7 +187,7 @@ def singbox_installed():
 
 def ensure_warp():
     if warp_proxy_ready():
-        print("WARP 代理已就绪，跳过安装")
+        ui.success("WARP 代理已就绪，跳过安装")
         return
 
     active_services = [svc for svc in ("warp-go", "warp-svc") if warp_active(svc)]
@@ -195,7 +198,7 @@ def ensure_warp():
             "请先开启 WARP 本地代理后再重试"
         )
 
-    print("安装 WARP...")
+    ui.step("安装 WARP")
     run_cmd("wget -O warp-go.sh https://gitlab.com/fscarmen/warp/-/raw/main/warp-go.sh")
     run_cmd("bash warp-go.sh 4")
 
@@ -205,10 +208,10 @@ def ensure_warp():
 
 def ensure_singbox():
     if singbox_installed():
-        print("sing-box 已存在")
+        ui.success("sing-box 已存在")
         return
 
-    print("安装 sing-box...")
+    ui.step("安装 sing-box")
     run_cmd("curl -fsSL -o install.sh https://sing-box.app/install.sh")
     run_cmd("sh install.sh")
     if not singbox_installed():
@@ -225,10 +228,10 @@ def ensure_dependencies():
 
 
 if __name__ == "__main__":
-    print("=== One-Click Deploy ===")
+    ui.banner("依赖自检", "WARP、sing-box 与端口占用检查")
     try:
         ensure_dependencies()
-        print("基础依赖检查完成")
+        ui.success("基础依赖检查完成")
     except RuntimeError as e:
-        print(str(e))
+        ui.error(str(e))
         raise SystemExit(1)

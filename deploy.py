@@ -2,8 +2,10 @@ import json
 import os
 import re
 import subprocess
+from typing import Any
 
 from certs import ensure_tls_certificates
+import cli_ui as ui
 from config import (
     REALITY_DECOY_SERVER,
     build_client_config,
@@ -19,6 +21,8 @@ DOMAIN_RE = re.compile(
 )
 CF_TOKEN_ENV = "CF_Token"
 CF_ZONE_ID_ENV = "CF_Zone_ID"
+SING_BOX_CONFIG_PATH = "/etc/sing-box/config.json"
+WATCHDOG_SCRIPT_PATH = "/root/warp_lazy_watchdog.sh"
 
 
 def normalize_domain_input(raw):
@@ -39,9 +43,13 @@ def resolve_cf_dns_credentials():
     zone_id = os.environ.get(CF_ZONE_ID_ENV, "").strip()
 
     if not token:
-        token = input(f"请输入 Cloudflare API Token ({CF_TOKEN_ENV}): ").strip()
+        token = ui.prompt("请输入 Cloudflare API Token", env_name=CF_TOKEN_ENV, secret=True).strip()
+    else:
+        ui.info(f"使用环境变量 {CF_TOKEN_ENV}")
     if not zone_id:
-        zone_id = input(f"请输入 Cloudflare Zone ID ({CF_ZONE_ID_ENV}): ").strip()
+        zone_id = ui.prompt("请输入 Cloudflare Zone ID", env_name=CF_ZONE_ID_ENV).strip()
+    else:
+        ui.info(f"使用环境变量 {CF_ZONE_ID_ENV}")
 
     if not token or not zone_id:
         raise RuntimeError("Cloudflare DNS-01 凭据不能为空")
@@ -58,64 +66,73 @@ def run_tls_issuance(protocol_hosts, cf_token, cf_zone_id):
         ensure_tls_certificates(protocol_hosts)
 
 
-def main():
-    print("\n" + "🚀" * 10)
-    print("Sing-box & Watchdog 一键部署")
-    print("🚀" * 10)
+def prompt_domain_root():
+    ui.section("基础输入")
+    return normalize_domain_input(ui.prompt("请输入主域名"))
 
-    try:
-        domain_root = normalize_domain_input(input("请输入主域名: "))
-    except RuntimeError as e:
-        print(str(e))
-        return 1
-    protocol_hosts = build_protocol_hosts(domain_root)
 
-    try:
-        cf_token, cf_zone_id = resolve_cf_dns_credentials()
-    except RuntimeError as e:
-        print(str(e))
-        return 1
+def write_server_config(server_config: dict[str, Any]):
+    os.makedirs(os.path.dirname(SING_BOX_CONFIG_PATH), exist_ok=True)
+    with open(SING_BOX_CONFIG_PATH, "w", encoding="utf-8") as f:
+        json.dump(server_config, f, indent=2, ensure_ascii=False)
 
-    try:
-        ensure_dependencies()
-    except RuntimeError as e:
-        print(str(e))
-        return 1
 
-    try:
-        run_tls_issuance(protocol_hosts, cf_token, cf_zone_id)
-    except RuntimeError as e:
-        print(str(e))
-        return 1
-
-    creds = generate_credentials()
-    sv_cfg = build_server_config(creds, protocol_hosts)
-    cl_cfg = build_client_config(creds, protocol_hosts)
-
-    os.makedirs("/etc/sing-box", exist_ok=True)
-    with open("/etc/sing-box/config.json", "w", encoding="utf-8") as f:
-        json.dump(sv_cfg, f, indent=2, ensure_ascii=False)
-
-    deploy_watchdog("/root/warp_lazy_watchdog.sh")
-
-    print("正在重启 sing-box...")
+def restart_services_and_verify():
+    ui.section("服务重载")
+    ui.step("重启 sing-box 并执行端口校验")
     try:
         subprocess.run(["systemctl", "restart", "sing-box"], check=True)
         ensure_port_safety()
     except (subprocess.CalledProcessError, RuntimeError) as e:
-        print(f"重启或端口校验失败: {e}")
-        return 1
+        raise RuntimeError(f"重启或端口校验失败: {e}") from e
 
-    print("\n✅ 部署成功")
-    print("协议子域名映射:")
-    print(f"  reality -> {protocol_hosts['reality']}")
-    print(f"  hy2     -> {protocol_hosts['hy2']}")
-    print(f"  tuic    -> {protocol_hosts['tuic']}")
-    print(f"Reality 伪装握手域名 -> {REALITY_DECOY_SERVER}")
+
+def print_success_result(client_config, protocol_hosts):
+    ui.section("部署结果")
+    ui.success("部署成功")
+    ui.kv("reality", protocol_hosts["reality"])
+    ui.kv("hy2", protocol_hosts["hy2"])
+    ui.kv("tuic", protocol_hosts["tuic"])
+    ui.kv("reality decoy", REALITY_DECOY_SERVER)
     print_port_snapshot()
-    print("\n" + "=" * 20 + " 请全选复制客户端 JSON " + "=" * 20)
-    print(json.dumps(cl_cfg, indent=2, ensure_ascii=False))
-    print("=" * 60)
+    ui.json_block("客户端 JSON", client_config)
+
+
+def deploy():
+    domain_root = prompt_domain_root()
+    protocol_hosts = build_protocol_hosts(domain_root)
+    cf_token, cf_zone_id = resolve_cf_dns_credentials()
+
+    ui.section("依赖检查")
+    ensure_dependencies()
+
+    ui.section("证书签发")
+    run_tls_issuance(protocol_hosts, cf_token, cf_zone_id)
+
+    ui.section("配置生成")
+    ui.step("生成服务端和客户端配置")
+    creds = generate_credentials()
+    server_config = build_server_config(creds, protocol_hosts)
+    client_config = build_client_config(creds, protocol_hosts)
+
+    ui.step(f"写入服务端配置: {SING_BOX_CONFIG_PATH}")
+    write_server_config(server_config)
+
+    ui.section("守护任务")
+    ui.step(f"部署 watchdog: {WATCHDOG_SCRIPT_PATH}")
+    deploy_watchdog(WATCHDOG_SCRIPT_PATH)
+    restart_services_and_verify()
+    print_success_result(client_config, protocol_hosts)
+
+
+def main():
+    ui.banner("Sing-box & Watchdog 一键部署", "统一初始化、证书签发、配置生成与守护部署")
+
+    try:
+        deploy()
+    except RuntimeError as e:
+        ui.error(str(e))
+        return 1
     return 0
 
 

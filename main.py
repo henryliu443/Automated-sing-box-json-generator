@@ -4,9 +4,12 @@ import time
 import urllib.request
 from urllib.error import URLError
 
+import cli_ui as ui
+
 BASE_URL = "https://raw.githubusercontent.com/henryliu443/Automated-sing-box-json-generator/refs/heads/main"
 REQUIRED_FILES = [
     "deploy.py",
+    "cli_ui.py",
     "config.py",
     "certs.py",
     "installer.py",
@@ -25,7 +28,7 @@ def download_file(name):
 
 def refresh_required_files():
     for name in REQUIRED_FILES:
-        print(f"[bootstrap] refreshing {name} ...")
+        ui.step(f"刷新远程文件: {name}")
         try:
             download_file(name)
         except (URLError, TimeoutError) as e:
@@ -39,8 +42,9 @@ def should_refresh_from_remote():
 
 if __name__ == "__main__":
     if should_refresh_from_remote():
+        ui.banner("Bootstrap", "从远程刷新部署脚本")
         refresh_required_files()
     else:
-        print("[bootstrap] local repository detected, skip remote refresh")
+        ui.info("检测到本地仓库，跳过远程刷新")
     deploy = importlib.import_module("deploy")
     raise SystemExit(deploy.main())

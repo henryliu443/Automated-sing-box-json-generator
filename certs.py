@@ -2,6 +2,7 @@ import os
 import shlex
 import subprocess
 
+import cli_ui as ui
 from config import HY2_CERT_PATH, HY2_KEY_PATH, TUIC_CERT_PATH, TUIC_KEY_PATH
 from installer import run_cmd
 
@@ -80,7 +81,7 @@ def _ensure_openssl():
     if _command_exists("openssl"):
         return
 
-    print("安装 openssl (证书校验依赖)...")
+    ui.step("安装 openssl (证书校验依赖)")
     if _command_exists("apt-get"):
         run_cmd("DEBIAN_FRONTEND=noninteractive apt-get update")
         run_cmd("DEBIAN_FRONTEND=noninteractive apt-get install -y openssl")
@@ -101,7 +102,7 @@ def _resolve_acme_sh():
     if _command_exists("acme.sh"):
         return "acme.sh"
 
-    print("安装 acme.sh...")
+    ui.step("安装 acme.sh")
     run_cmd(f"curl -fsSL {ACME_INSTALL_URL} | sh")
 
     if os.path.isfile(ACME_SH_PATH):
@@ -116,10 +117,10 @@ def _issue_and_install_cert(acme_sh, host, cert_path, key_path, cf_token, cf_zon
     os.makedirs(os.path.dirname(key_path), exist_ok=True)
 
     if _cert_is_valid_for_host(cert_path, host):
-        print(f"证书已可用且域名匹配，跳过重签: {host}")
+        ui.success(f"证书已可用且域名匹配，跳过重签: {host}")
         return
 
-    print(f"签发/更新证书 (Cloudflare DNS-01): {host}")
+    ui.step(f"签发/更新证书 (Cloudflare DNS-01): {host}")
     run_cmd(f"{_q(acme_sh)} --set-default-ca --server {ACME_CA}")
     run_cmd(
         f"{CF_TOKEN_ENV}={_q(cf_token)} {CF_ZONE_ID_ENV}={_q(cf_zone_id)} "
@@ -141,7 +142,7 @@ def ensure_tls_certificates(protocol_hosts, cf_token=None, cf_zone_id=None):
 
     _ensure_openssl()
     cf_token, cf_zone_id = _ensure_dns_credentials(cf_token=cf_token, cf_zone_id=cf_zone_id)
-    print("证书挑战方式: Cloudflare DNS-01 (dns_cf)")
+    ui.info("证书挑战方式: Cloudflare DNS-01 (dns_cf)")
     acme_sh = _resolve_acme_sh()
 
     _issue_and_install_cert(

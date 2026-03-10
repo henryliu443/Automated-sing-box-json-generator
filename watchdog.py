@@ -1,6 +1,8 @@
 import os
 import subprocess
 
+import cli_ui as ui
+
 WATCHDOG_SCRIPT = r"""#!/bin/bash
 
 # --- 配置区 ---
@@ -94,4 +96,4 @@ def deploy_watchdog(script_path="/root/warp_lazy_watchdog.sh"):
 
 if __name__ == "__main__":
     deploy_watchdog()
-    print("Watchdog 已部署并挂载 crontab。")
+    ui.success("Watchdog 已部署并挂载 crontab")
