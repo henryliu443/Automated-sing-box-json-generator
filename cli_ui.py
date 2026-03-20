@@ -5,10 +5,8 @@ import sys
 
 try:
     import termios
-    import tty
 except ImportError:  # pragma: no cover - non-POSIX fallback
     termios = None
-    tty = None
 
 _ANSI = {
     "reset": "\033[0m",
@@ -123,18 +121,8 @@ def _resolve_tty_io():
     return read_stream, write_stream, closers
 
 
-def _consume_escape_sequence(fd):
-    while True:
-        chunk = os.read(fd, 1)
-        if not chunk:
-            return
-        char = chunk.decode("utf-8", errors="ignore")
-        if not char or char.isalpha() or char == "~":
-            return
-
-
 def _read_prompt_from_tty(text, secret=False):
-    if termios is None or tty is None:
+    if termios is None:
         if secret:
             return getpass.getpass(text)
         return input(text)
@@ -147,53 +135,24 @@ def _read_prompt_from_tty(text, secret=False):
 
     fd = read_stream.fileno()
     old_settings = termios.tcgetattr(fd)
-    chars = []
 
     try:
         write_stream.write(text)
         write_stream.flush()
-        tty.setraw(fd)
+        if secret:
+            new_settings = termios.tcgetattr(fd)
+            new_settings[3] &= ~termios.ECHO
+            termios.tcsetattr(fd, termios.TCSADRAIN, new_settings)
 
-        while True:
-            chunk = os.read(fd, 1)
-            if not chunk:
-                raise EOFError
+        line = read_stream.readline()
+        if line == "":
+            raise EOFError
 
-            char = chunk.decode("utf-8", errors="ignore")
+        if secret:
+            write_stream.write("\n")
+            write_stream.flush()
 
-            if char in ("\r", "\n"):
-                write_stream.write("\n")
-                write_stream.flush()
-                return "".join(chars)
-
-            if char == "\x03":
-                write_stream.write("^C\n")
-                write_stream.flush()
-                raise KeyboardInterrupt
-
-            if char == "\x04":
-                if not chars:
-                    write_stream.write("\n")
-                    write_stream.flush()
-                    raise EOFError
-                continue
-
-            if char == "\x1b":
-                _consume_escape_sequence(fd)
-                continue
-
-            if char in ("\x7f", "\b"):
-                if chars:
-                    chars.pop()
-                    if not secret:
-                        write_stream.write("\b \b")
-                        write_stream.flush()
-                continue
-
-            chars.append(char)
-            if not secret:
-                write_stream.write(char)
-                write_stream.flush()
+        return line.rstrip("\r\n")
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
         for stream in closers:
