@@ -263,26 +263,26 @@ def build_client_config(creds, protocol_hosts=None):
 
                     "address": PRIMARY_DOH_ADDRESS,
 
-                    "detour": "direct",
+                    "detour": "proxy-best",
 
                 },
 
                 {
                     "tag": "dns-doh-secondary",
                     "address": SECONDARY_DOH_ADDRESS,
-                    "detour": "direct",
+                    "detour": "proxy-best",
                 },
 
                 {
                     "tag": "dns-fallback-cn-primary",
                     "address": CN_FALLBACK_DNS_PRIMARY,
-                    "detour": "direct",
+                    "detour": "proxy-best",
                 },
 
                 {
                     "tag": "dns-fallback-cn-secondary",
                     "address": CN_FALLBACK_DNS_SECONDARY,
-                    "detour": "direct",
+                    "detour": "proxy-best",
                 },
 
                 {
@@ -478,8 +478,6 @@ def build_client_config(creds, protocol_hosts=None):
                 {"protocol": "dns", "action": "hijack-dns"},
 
                 {"rule_set": "geosite-category-ads-all", "action": "reject"},
-
-                {"ip_cidr": ["1.1.1.1/32", "8.8.8.8/32", "223.5.5.5/32", "119.29.29.29/32"], "outbound": "direct"},
 
                 {"ip_is_private": True, "outbound": "direct"},
 
