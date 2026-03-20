@@ -137,7 +137,9 @@ def _read_prompt_from_tty(text, secret=False):
     old_settings = termios.tcgetattr(fd)
 
     try:
-        write_stream.write(text)
+        # Force the prompt to start at column 0 even if the previous linefeed
+        # did not return the cursor to the line start in this terminal.
+        write_stream.write(f"\r{text}")
         write_stream.flush()
         if secret:
             new_settings = termios.tcgetattr(fd)
@@ -149,7 +151,10 @@ def _read_prompt_from_tty(text, secret=False):
             raise EOFError
 
         if secret:
-            write_stream.write("\n")
+            write_stream.write("\r\n")
+            write_stream.flush()
+        else:
+            write_stream.write("\r")
             write_stream.flush()
 
         return line.rstrip("\r\n")
@@ -162,7 +167,16 @@ def _read_prompt_from_tty(text, secret=False):
 def prompt(label, env_name=None, secret=False):
     hint = f" [{env_name}]" if env_name else ""
     text = f"{label}{hint}: "
-    return _read_prompt_from_tty(text, secret=secret)
+    if secret:
+        try:
+            return getpass.getpass(text)
+        except EOFError:
+            return _read_prompt_from_tty(text, secret=True)
+
+    try:
+        return input(text)
+    except EOFError:
+        return _read_prompt_from_tty(text, secret=False)
 
 
 def json_block(title, payload):
