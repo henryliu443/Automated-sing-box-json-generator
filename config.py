@@ -261,14 +261,14 @@ def build_client_config(creds, protocol_hosts=None):
 
                     "address": PRIMARY_DOH_ADDRESS,
 
-                    "detour": "proxy-best",
+                    "detour": "direct",
 
                 },
 
                 {
                     "tag": "dns-doh-secondary",
                     "address": SECONDARY_DOH_ADDRESS,
-                    "detour": "proxy-best",
+                    "detour": "direct",
                 },
 
                 {
