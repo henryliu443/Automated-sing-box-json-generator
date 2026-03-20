@@ -44,8 +44,10 @@ CN_FINANCE_DOMAIN_KEYWORDS = ["alipay", "tenpay", "unionpay", "wechatpay", "9551
 
 # sing-box DNS routing selects a single server tag per query.
 # Keep a clear priority pool here and default all DNS to primary DoH.
-PRIMARY_DOH_ADDRESS = "https://1.1.1.1/dns-query"
-SECONDARY_DOH_ADDRESS = "https://8.8.8.8/dns-query"
+# 1.1.1.1/8.8.8.8 are frequently blocked in mainland China, so default to
+# domestic DoH endpoints that are generally reachable.
+PRIMARY_DOH_ADDRESS = "https://223.5.5.5/dns-query"  # AliDNS DoH
+SECONDARY_DOH_ADDRESS = "https://doh.pub/dns-query"   # Tencent DoH (119.29.29.29)
 CN_FALLBACK_DNS_PRIMARY = "223.5.5.5"
 CN_FALLBACK_DNS_SECONDARY = "119.29.29.29"
 
