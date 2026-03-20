@@ -42,6 +42,13 @@ CN_FINANCE_DOMAIN_SUFFIXES = [
 
 CN_FINANCE_DOMAIN_KEYWORDS = ["alipay", "tenpay", "unionpay", "wechatpay", "95516"]
 
+# sing-box DNS routing selects a single server tag per query.
+# Keep a clear priority pool here and default all DNS to primary DoH.
+PRIMARY_DOH_ADDRESS = "https://1.1.1.1/dns-query"
+SECONDARY_DOH_ADDRESS = "https://8.8.8.8/dns-query"
+CN_FALLBACK_DNS_PRIMARY = "223.5.5.5"
+CN_FALLBACK_DNS_SECONDARY = "119.29.29.29"
+
 
 
 # SNI segmented domain mapping:
@@ -250,17 +257,31 @@ def build_client_config(creds, protocol_hosts=None):
 
                 {
 
-                    "tag": "dns-proxy-doh",
+                    "tag": "dns-doh-primary",
 
-                    "address": "https://1.1.1.1/dns-query",
+                    "address": PRIMARY_DOH_ADDRESS,
 
                     "detour": "proxy-best",
 
                 },
 
-                {"tag": "dns-remote", "address": "223.5.5.5", "detour": "direct"},
+                {
+                    "tag": "dns-doh-secondary",
+                    "address": SECONDARY_DOH_ADDRESS,
+                    "detour": "proxy-best",
+                },
 
-                {"tag": "dns-direct", "address": "119.29.29.29", "detour": "direct"},
+                {
+                    "tag": "dns-fallback-cn-primary",
+                    "address": CN_FALLBACK_DNS_PRIMARY,
+                    "detour": "direct",
+                },
+
+                {
+                    "tag": "dns-fallback-cn-secondary",
+                    "address": CN_FALLBACK_DNS_SECONDARY,
+                    "detour": "direct",
+                },
 
                 {
 
@@ -276,24 +297,15 @@ def build_client_config(creds, protocol_hosts=None):
 
                 {"rule_set": "geosite-category-ads-all", "server": "dns-block"},
 
-                {"domain": [hosts["reality"], hosts["tuic"], hosts["hy2"]], "server": "dns-remote"},
+                {"domain": [hosts["reality"], hosts["tuic"], hosts["hy2"]], "server": "dns-doh-primary"},
 
-                {
-                    "domain_suffix": CN_FINANCE_DOMAIN_SUFFIXES,
-                    "server": "dns-direct",
-                },
+                {"rule_set": "geosite-telegram", "server": "dns-doh-primary"},
 
-                {"domain_keyword": CN_FINANCE_DOMAIN_KEYWORDS, "server": "dns-direct"},
-
-                {"rule_set": ["geosite-apple", "geosite-apple-cn", "geosite-cn", "geosite-geolocation-cn"], "server": "dns-direct"},
-
-                {"rule_set": "geosite-telegram", "server": "dns-proxy-doh"},
-
-                {"rule_set": "geosite-geolocation-!cn", "server": "dns-proxy-doh"},
+                {"rule_set": "geosite-geolocation-!cn", "server": "dns-doh-primary"},
 
             ],
 
-            "final": "dns-remote",
+            "final": "dns-doh-primary",
 
             "strategy": "prefer_ipv4",
 
@@ -465,7 +477,7 @@ def build_client_config(creds, protocol_hosts=None):
 
                 {"rule_set": "geosite-category-ads-all", "action": "reject"},
 
-                {"ip_cidr": ["1.1.1.1/32", "223.5.5.5/32", "119.29.29.29/32"], "outbound": "direct"},
+                {"ip_cidr": ["1.1.1.1/32", "8.8.8.8/32", "223.5.5.5/32", "119.29.29.29/32"], "outbound": "direct"},
 
                 {"ip_is_private": True, "outbound": "direct"},
 
