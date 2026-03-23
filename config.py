@@ -14,40 +14,9 @@ HY2_CERT_PATH = "/etc/hysteria/server.crt"
 
 HY2_KEY_PATH = "/etc/hysteria/server.key"
 
-CN_FINANCE_DOMAIN_SUFFIXES = [
-    "95516.com",
-    "abchina.com",
-    "alipay.com",
-    "alipayobjects.com",
-    "bankcomm.com",
-    "boc.cn",
-    "ccb.com",
-    "ccb.com.cn",
-    "cebbank.com",
-    "chinaums.com",
-    "cib.com.cn",
-    "citicbank.com",
-    "cmbchina.com",
-    "cmbc.com.cn",
-    "ecitic.com",
-    "hxb.com.cn",
-    "icbc.com.cn",
-    "psbc.com",
-    "spdb.com.cn",
-    "tenpay.com",
-    "unionpay.com",
-    "unionpaysecure.com",
-    "wechatpay.com",
-]
-
-CN_FINANCE_DOMAIN_KEYWORDS = ["alipay", "tenpay", "unionpay", "wechatpay", "95516"]
-
-# sing-box DNS routing selects a single server tag per query.
-# Keep a clear priority pool here and default all DNS to primary DoH.
-# 1.1.1.1/8.8.8.8 are frequently blocked in mainland China, so default to
-# domestic DoH endpoints that are generally reachable.
-PRIMARY_DOH_ADDRESS = "https://223.5.5.5/dns-query"  # AliDNS DoH
-SECONDARY_DOH_ADDRESS = "https://doh.pub/dns-query"   # Tencent DoH (119.29.29.29)
+PRIMARY_DOH_SERVER = "223.5.5.5"
+SECONDARY_DOH_SERVER = "1.1.1.1"
+DOH_PATH = "/dns-query"
 CN_FALLBACK_DNS_PRIMARY = "223.5.5.5"
 CN_FALLBACK_DNS_SECONDARY = "119.29.29.29"
 
@@ -258,59 +227,38 @@ def build_client_config(creds, protocol_hosts=None):
             "servers": [
 
                 {
-
+                    "type": "https",
                     "tag": "dns-doh-primary",
-
-                    "address": PRIMARY_DOH_ADDRESS,
-
-                    "detour": "direct",
-
+                    "server": PRIMARY_DOH_SERVER,
+                    "path": DOH_PATH,
                 },
-
                 {
+                    "type": "https",
                     "tag": "dns-doh-secondary",
-                    "address": SECONDARY_DOH_ADDRESS,
-                    "detour": "direct",
+                    "server": SECONDARY_DOH_SERVER,
+                    "path": DOH_PATH,
                 },
-
                 {
+                    "type": "udp",
                     "tag": "dns-fallback-cn-primary",
-                    "address": CN_FALLBACK_DNS_PRIMARY,
-                    "detour": "direct",
+                    "server": CN_FALLBACK_DNS_PRIMARY,
                 },
-
                 {
+                    "type": "udp",
                     "tag": "dns-fallback-cn-secondary",
-                    "address": CN_FALLBACK_DNS_SECONDARY,
-                    "detour": "direct",
-                },
-
-                {
-
-                    "tag": "dns-block",
-
-                    "address": "rcode://success",
-
+                    "server": CN_FALLBACK_DNS_SECONDARY,
                 },
 
             ],
 
             "rules": [
 
-                {"rule_set": "geosite-category-ads-all", "server": "dns-block"},
-
                 {"domain": [hosts["reality"], hosts["tuic"], hosts["hy2"]], "server": "dns-doh-primary"},
-
                 {"rule_set": "geosite-telegram", "server": "dns-doh-primary"},
-
                 {"rule_set": "geosite-geolocation-!cn", "server": "dns-doh-primary"},
-
             ],
-
             "final": "dns-doh-primary",
-
             "strategy": "prefer_ipv4",
-
         },
 
         "inbounds": [
@@ -361,7 +309,7 @@ def build_client_config(creds, protocol_hosts=None):
 
                 "url": "https://cp.cloudflare.com/generate_204",
 
-                "interval": "10m0s",
+                "interval": "10m",
 
                 "tolerance": 50,
 
@@ -377,34 +325,15 @@ def build_client_config(creds, protocol_hosts=None):
 
                 "server_port": 23244,
 
-                "idle_session_check_interval": "30s",
-
-                "idle_session_timeout": "30s",
-
-                "min_idle_session": 5,
-
                 "tls": {
-
                     "enabled": True,
-
-                    "disable_sni": False,
-
                     "server_name": REALITY_DECOY_SERVER,
-
-                    "insecure": False,
-
                     "utls": {"enabled": True, "fingerprint": "chrome"},
-
                     "reality": {
-
                         "enabled": True,
-
                         "public_key": creds["public_key"],
-
                         "short_id": "0123456789abcdef",
-
                     },
-
                 },
 
                 "password": creds["pwd_anytls"],
@@ -420,8 +349,6 @@ def build_client_config(creds, protocol_hosts=None):
                 "server": hosts["tuic"],
 
                 "server_port": 9443,
-
-                "connect_timeout": "5s",
 
                 "uuid": creds["uuid"],
 
@@ -451,8 +378,6 @@ def build_client_config(creds, protocol_hosts=None):
 
                 "server_port": 7443,
 
-                "connect_timeout": "5s",
-
                 "obfs": {"type": "salamander", "password": creds["pwd_obfs"]},
 
                 "password": creds["pwd_hy2"],
@@ -477,23 +402,9 @@ def build_client_config(creds, protocol_hosts=None):
 
                 {"protocol": "dns", "action": "hijack-dns"},
 
-                {"rule_set": "geosite-category-ads-all", "action": "reject"},
-
-                {"ip_cidr": ["1.1.1.1/32", "8.8.8.8/32", "223.5.5.5/32", "119.29.29.29/32"], "outbound": "direct"},
-
                 {"ip_is_private": True, "outbound": "direct"},
-
-                {
-                    "domain_suffix": CN_FINANCE_DOMAIN_SUFFIXES,
-                    "outbound": "direct",
-                },
-
-                {"domain_keyword": CN_FINANCE_DOMAIN_KEYWORDS, "outbound": "direct"},
-
                 {"rule_set": ["geosite-telegram", "geoip-telegram"], "outbound": "proxy-best"},
-
-                {"rule_set": ["geosite-apple", "geosite-apple-cn", "geosite-cn", "geosite-geolocation-cn", "geoip-cn", "geoip-cn-asn"], "outbound": "direct"},
-
+                {"rule_set": ["geosite-cn", "geoip-cn"], "outbound": "direct"},
                 {"rule_set": "geosite-geolocation-!cn", "outbound": "proxy-best"},
 
             ],
@@ -508,8 +419,6 @@ def build_client_config(creds, protocol_hosts=None):
 
                     "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/apple.srs",
 
-                    "format": "binary",
-
                 },
 
                 {
@@ -519,8 +428,6 @@ def build_client_config(creds, protocol_hosts=None):
                     "tag": "geosite-apple-cn",
 
                     "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/apple-cn.srs",
-
-                    "format": "binary",
 
                 },
 
@@ -532,8 +439,6 @@ def build_client_config(creds, protocol_hosts=None):
 
                     "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/cn.srs",
 
-                    "format": "binary",
-
                 },
 
                 {
@@ -543,8 +448,6 @@ def build_client_config(creds, protocol_hosts=None):
                     "tag": "geosite-geolocation-cn",
 
                     "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/geolocation-cn.srs",
-
-                    "format": "binary",
 
                 },
 
@@ -556,8 +459,6 @@ def build_client_config(creds, protocol_hosts=None):
 
                     "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/telegram.srs",
 
-                    "format": "binary",
-
                 },
 
                 {
@@ -567,8 +468,6 @@ def build_client_config(creds, protocol_hosts=None):
                     "tag": "geosite-geolocation-!cn",
 
                     "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/geolocation-!cn.srs",
-
-                    "format": "binary",
 
                 },
 
@@ -580,8 +479,6 @@ def build_client_config(creds, protocol_hosts=None):
 
                     "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geoip/telegram.srs",
 
-                    "format": "binary",
-
                 },
 
                 {
@@ -592,8 +489,6 @@ def build_client_config(creds, protocol_hosts=None):
 
                     "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geoip/cn.srs",
 
-                    "format": "binary",
-
                 },
 
                 {
@@ -603,20 +498,6 @@ def build_client_config(creds, protocol_hosts=None):
                     "tag": "geoip-cn-asn",
 
                     "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo-lite/geoip/cn.srs",
-
-                    "format": "binary",
-
-                },
-
-                {
-
-                    "type": "remote",
-
-                    "tag": "geosite-category-ads-all",
-
-                    "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/category-ads-all.srs",
-
-                    "format": "binary",
 
                 },
 
