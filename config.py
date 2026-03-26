@@ -228,36 +228,54 @@ def build_client_config(creds, protocol_hosts=None):
 
                 {
                     "type": "https",
-                    "tag": "dns-doh-primary",
+                    "tag": "dns-doh-direct-primary",
                     "server": PRIMARY_DOH_SERVER,
                     "path": DOH_PATH,
                 },
                 {
                     "type": "https",
-                    "tag": "dns-doh-secondary",
+                    "tag": "dns-doh-direct-secondary",
                     "server": SECONDARY_DOH_SERVER,
                     "path": DOH_PATH,
+                },
+                {
+                    "type": "https",
+                    "tag": "dns-doh-proxy-primary",
+                    "server": PRIMARY_DOH_SERVER,
+                    "path": DOH_PATH,
+                    "detour": "proxy-best",
+                },
+                {
+                    "type": "https",
+                    "tag": "dns-doh-proxy-secondary",
+                    "server": SECONDARY_DOH_SERVER,
+                    "path": DOH_PATH,
+                    "detour": "proxy-best",
                 },
                 {
                     "type": "udp",
                     "tag": "dns-fallback-cn-primary",
                     "server": CN_FALLBACK_DNS_PRIMARY,
+                    "detour": "direct",
                 },
                 {
                     "type": "udp",
                     "tag": "dns-fallback-cn-secondary",
                     "server": CN_FALLBACK_DNS_SECONDARY,
+                    "detour": "direct",
                 },
 
             ],
 
             "rules": [
 
-                {"domain": [hosts["reality"], hosts["tuic"], hosts["hy2"]], "server": "dns-doh-primary"},
-                {"rule_set": "geosite-telegram", "server": "dns-doh-primary"},
-                {"rule_set": "geosite-geolocation-!cn", "server": "dns-doh-primary"},
+                {"domain": [hosts["reality"], hosts["tuic"], hosts["hy2"]], "server": "dns-doh-direct-primary"},
+                {"rule_set": "geosite-telegram", "server": "dns-doh-proxy-primary"},
+                {"rule_set": "geosite-whatsapp", "server": "dns-doh-proxy-primary"},
+                {"rule_set": ["geosite-cn", "geosite-geolocation-cn"], "server": "dns-fallback-cn-primary"},
+                {"rule_set": "geosite-geolocation-!cn", "server": "dns-doh-proxy-primary"},
             ],
-            "final": "dns-doh-primary",
+            "final": "dns-fallback-cn-primary",
             "strategy": "prefer_ipv4",
         },
 
@@ -404,6 +422,7 @@ def build_client_config(creds, protocol_hosts=None):
 
                 {"ip_is_private": True, "outbound": "direct"},
                 {"rule_set": ["geosite-telegram", "geoip-telegram"], "outbound": "proxy-best"},
+                {"rule_set": "geosite-whatsapp", "outbound": "proxy-best"},
                 {"rule_set": ["geosite-cn", "geoip-cn"], "outbound": "direct"},
                 {"rule_set": "geosite-geolocation-!cn", "outbound": "proxy-best"},
 
@@ -458,6 +477,16 @@ def build_client_config(creds, protocol_hosts=None):
                     "tag": "geosite-telegram",
 
                     "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/telegram.srs",
+
+                },
+
+                {
+
+                    "type": "remote",
+
+                    "tag": "geosite-whatsapp",
+
+                    "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/whatsapp.srs",
 
                 },
 
