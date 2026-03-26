@@ -37,6 +37,7 @@ REQUIRED_FILES = [
     "deploy.py",
     "cli_ui.py",
     "config.py",
+    "route_profile.py",
     "certs.py",
     "installer.py",
     "credentials.py",

@@ -1,10 +1,11 @@
+from route_profile import TUN_EXCLUDED_ROUTES, build_dns_config, build_route_config
+
+
 REALITY_DECOY_SERVER = "react.dev"
 
 REALITY_DECOY_PORT = 443
 
 HY2_MASQUERADE_URL = "https://www.cloudflare.com"
-
-
 
 TUIC_CERT_PATH = "/etc/sing-box-tuic/certs/tuic.crt"
 
@@ -13,14 +14,6 @@ TUIC_KEY_PATH = "/etc/sing-box-tuic/certs/tuic.key"
 HY2_CERT_PATH = "/etc/hysteria/server.crt"
 
 HY2_KEY_PATH = "/etc/hysteria/server.key"
-
-PRIMARY_DOH_SERVER = "223.5.5.5"
-SECONDARY_DOH_SERVER = "1.1.1.1"
-DOH_PATH = "/dns-query"
-CN_FALLBACK_DNS_PRIMARY = "223.5.5.5"
-CN_FALLBACK_DNS_SECONDARY = "119.29.29.29"
-
-
 
 # SNI segmented domain mapping:
 # jx1xfnke -> reality, t7mmubf0 -> hy2, xts6e4iz -> tuic
@@ -227,60 +220,7 @@ def build_client_config(creds, protocol_hosts=None):
 
         "log": {"level": "info", "timestamp": True},
 
-        "dns": {
-
-            "servers": [
-
-                {
-                    "type": "https",
-                    "tag": "dns-doh-direct-primary",
-                    "server": PRIMARY_DOH_SERVER,
-                    "path": DOH_PATH,
-                },
-                {
-                    "type": "https",
-                    "tag": "dns-doh-direct-secondary",
-                    "server": SECONDARY_DOH_SERVER,
-                    "path": DOH_PATH,
-                },
-                {
-                    "type": "https",
-                    "tag": "dns-doh-proxy-primary",
-                    "server": PRIMARY_DOH_SERVER,
-                    "path": DOH_PATH,
-                    "detour": "proxy-best",
-                },
-                {
-                    "type": "https",
-                    "tag": "dns-doh-proxy-secondary",
-                    "server": SECONDARY_DOH_SERVER,
-                    "path": DOH_PATH,
-                    "detour": "proxy-best",
-                },
-                {
-                    "type": "udp",
-                    "tag": "dns-fallback-cn-primary",
-                    "server": CN_FALLBACK_DNS_PRIMARY,
-                },
-                {
-                    "type": "udp",
-                    "tag": "dns-fallback-cn-secondary",
-                    "server": CN_FALLBACK_DNS_SECONDARY,
-                },
-
-            ],
-
-            "rules": [
-
-                {"domain": [hosts["reality"], hosts["tuic"], hosts["hy2"]], "server": "dns-doh-direct-primary"},
-                {"rule_set": "geosite-telegram", "server": "dns-doh-proxy-primary"},
-                {"rule_set": "geosite-whatsapp", "server": "dns-doh-proxy-primary"},
-                {"rule_set": ["geosite-cn", "geosite-geolocation-cn"], "server": "dns-fallback-cn-primary"},
-                {"rule_set": "geosite-geolocation-!cn", "server": "dns-doh-proxy-primary"},
-            ],
-            "final": "dns-fallback-cn-primary",
-            "strategy": "prefer_ipv4",
-        },
+        "dns": build_dns_config(hosts),
 
         "inbounds": [
 
@@ -296,6 +236,8 @@ def build_client_config(creds, protocol_hosts=None):
 
                 "strict_route": True,
 
+                "route_exclude_address": TUN_EXCLUDED_ROUTES,
+
                 "stack": "system",
 
                 "sniff": True,
@@ -310,21 +252,9 @@ def build_client_config(creds, protocol_hosts=None):
 
             {
 
-                "type": "selector",
-
-                "tag": "proxy-best",
-
-                "outbounds": ["anytls-out", "性能池-自动负载", "direct"],
-
-                "default": "anytls-out",
-
-            },
-
-            {
-
                 "type": "urltest",
 
-                "tag": "性能池-自动负载",
+                "tag": "proxy-best",
 
                 "outbounds": ["tuic-out", "hy2-out", "anytls-out"],
 
@@ -417,128 +347,6 @@ def build_client_config(creds, protocol_hosts=None):
 
         ],
 
-        "route": {
-
-            "rules": [
-
-                {"protocol": "dns", "action": "hijack-dns"},
-
-                {"ip_is_private": True, "outbound": "direct"},
-                {"rule_set": ["geosite-telegram", "geoip-telegram"], "outbound": "proxy-best"},
-                {"rule_set": "geosite-whatsapp", "outbound": "proxy-best"},
-                {"rule_set": ["geosite-cn", "geoip-cn"], "outbound": "direct"},
-                {"rule_set": "geosite-geolocation-!cn", "outbound": "proxy-best"},
-
-            ],
-
-            "rule_set": [
-
-                {
-
-                    "type": "remote",
-
-                    "tag": "geosite-apple",
-
-                    "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/apple.srs",
-
-                },
-
-                {
-
-                    "type": "remote",
-
-                    "tag": "geosite-apple-cn",
-
-                    "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/apple-cn.srs",
-
-                },
-
-                {
-
-                    "type": "remote",
-
-                    "tag": "geosite-cn",
-
-                    "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/cn.srs",
-
-                },
-
-                {
-
-                    "type": "remote",
-
-                    "tag": "geosite-geolocation-cn",
-
-                    "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/geolocation-cn.srs",
-
-                },
-
-                {
-
-                    "type": "remote",
-
-                    "tag": "geosite-telegram",
-
-                    "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/telegram.srs",
-
-                },
-
-                {
-
-                    "type": "remote",
-
-                    "tag": "geosite-whatsapp",
-
-                    "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/whatsapp.srs",
-
-                },
-
-                {
-
-                    "type": "remote",
-
-                    "tag": "geosite-geolocation-!cn",
-
-                    "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/geolocation-!cn.srs",
-
-                },
-
-                {
-
-                    "type": "remote",
-
-                    "tag": "geoip-telegram",
-
-                    "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geoip/telegram.srs",
-
-                },
-
-                {
-
-                    "type": "remote",
-
-                    "tag": "geoip-cn",
-
-                    "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geoip/cn.srs",
-
-                },
-
-                {
-
-                    "type": "remote",
-
-                    "tag": "geoip-cn-asn",
-
-                    "url": "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo-lite/geoip/cn.srs",
-
-                },
-
-            ],
-
-            "final": "direct",
-
-            "auto_detect_interface": True,
-
-        },
+        "route": build_route_config(),
 
     }
