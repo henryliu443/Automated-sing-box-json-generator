@@ -261,13 +261,11 @@ def build_client_config(creds, protocol_hosts=None):
                     "type": "udp",
                     "tag": "dns-fallback-cn-primary",
                     "server": CN_FALLBACK_DNS_PRIMARY,
-                    "detour": "direct",
                 },
                 {
                     "type": "udp",
                     "tag": "dns-fallback-cn-secondary",
                     "server": CN_FALLBACK_DNS_SECONDARY,
-                    "detour": "direct",
                 },
 
             ],
