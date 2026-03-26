@@ -274,6 +274,8 @@ def build_client_config(creds, protocol_hosts=None):
 
                 "server": hosts["reality"],
 
+                "domain_resolver": "dns-direct",
+
                 "server_port": 23244,
 
                 "tls": {
@@ -298,6 +300,8 @@ def build_client_config(creds, protocol_hosts=None):
                 "tag": "tuic-out",
 
                 "server": hosts["tuic"],
+
+                "domain_resolver": "dns-direct",
 
                 "server_port": 9443,
 
@@ -326,6 +330,8 @@ def build_client_config(creds, protocol_hosts=None):
                 "tag": "hy2-out",
 
                 "server": hosts["hy2"],
+
+                "domain_resolver": "dns-direct",
 
                 "server_port": 7443,
 

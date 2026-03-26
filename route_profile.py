@@ -1,5 +1,3 @@
-from functools import lru_cache
-
 DNS_DIRECT_SERVER = "223.5.5.5"
 DNS_REMOTE_SERVER = "1.1.1.1"
 DNS_REMOTE_PATH = "/dns-query"
@@ -7,757 +5,121 @@ GEOIP_CN_RULESET_URL = "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@
 
 SKIP_PROXY_DOMAINS = ["localhost", "captive.apple.com"]
 SKIP_PROXY_SUFFIXES = ["local"]
+DNS_DIRECT_ONLY_DOMAINS = ["cp.cloudflare.com"]
+DNS_DIRECT_ONLY_SUFFIXES = ["in-addr.arpa", "ip6.arpa"]
 TUN_EXCLUDED_ROUTES = [
-    "10.0.0.0/8",
-    "100.64.0.0/10",
-    "127.0.0.0/8",
-    "169.254.0.0/16",
-    "172.16.0.0/12",
-    "192.0.0.0/24",
-    "192.0.2.0/24",
-    "192.88.99.0/24",
-    "192.168.0.0/16",
-    "198.51.100.0/24",
-    "203.0.113.0/24",
-    "224.0.0.0/4",
-    "255.255.255.255/32",
-    "239.255.255.250/32",
+    "10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8", "169.254.0.0/16", "172.16.0.0/12", "192.0.0.0/24", "192.0.2.0/24", "192.88.99.0/24",
+    "192.168.0.0/16", "198.51.100.0/24", "203.0.113.0/24", "224.0.0.0/4", "255.255.255.255/32", "239.255.255.250/32",
 ]
 
-SHADOWROCKET_RULES = """
-DOMAIN-SUFFIX,apple-relay.akamaized.net,PROXY
-DOMAIN-SUFFIX,apple-relay.apple.com,PROXY
-DOMAIN-SUFFIX,apple-relay.cloudflare.com,PROXY
-DOMAIN-SUFFIX,apple-relay.fastly-edge.com,PROXY
-DOMAIN,copilot.microsoft.com,PROXY
-DOMAIN,copilot.bing.com,PROXY
-DOMAIN-SUFFIX,apple-relay.mask.apple-dns.net,PROXY
-DOMAIN-SUFFIX,baidu.com,DIRECT
-DOMAIN-SUFFIX,baidubcr.com,DIRECT
-DOMAIN-SUFFIX,bdstatic.com,DIRECT
-DOMAIN-SUFFIX,yunjiasu-cdn.net,DIRECT
-DOMAIN-SUFFIX,taobao.com,DIRECT
-DOMAIN-SUFFIX,alicdn.com,DIRECT
-DOMAIN,blzddist1-a.akamaihd.net,DIRECT
-DOMAIN,cdn.angruo.com,PROXY
-DOMAIN,download.jetbrains.com,DIRECT
-DOMAIN,file-igamecj.akamaized.net,DIRECT
-DOMAIN,images-cn.ssl-images-amazon.com,DIRECT
-DOMAIN,officecdn-microsoft-com.akamaized.net,DIRECT
-DOMAIN,speedtest.macpaw.com,DIRECT
-DOMAIN-SUFFIX,126.net,DIRECT
-DOMAIN-SUFFIX,127.net,DIRECT
-DOMAIN-SUFFIX,163.com,DIRECT
-DOMAIN-SUFFIX,163yun.com,DIRECT
-DOMAIN-SUFFIX,21cn.com,DIRECT
-DOMAIN-SUFFIX,343480.com,DIRECT
-DOMAIN-SUFFIX,360buyimg.com,DIRECT
-DOMAIN-SUFFIX,360in.com,DIRECT
-DOMAIN-SUFFIX,51ym.me,DIRECT
-DOMAIN-SUFFIX,71.am.com,DIRECT
-DOMAIN-SUFFIX,8686c.com,DIRECT
-DOMAIN-SUFFIX,abchina.com,DIRECT
-DOMAIN-SUFFIX,accuweather.com,DIRECT
-DOMAIN-SUFFIX,acgvideo.com,DIRECT
-DOMAIN-SUFFIX,acm.org,DIRECT
-DOMAIN-SUFFIX,acs.org,DIRECT
-DOMAIN-SUFFIX,aicoinstorge.com,DIRECT
-DOMAIN-SUFFIX,aip.org,DIRECT
-DOMAIN-SUFFIX,air-matters.com,DIRECT
-DOMAIN-SUFFIX,air-matters.io,DIRECT
-DOMAIN-SUFFIX,aixifan.com,DIRECT
-DOMAIN-SUFFIX,akadns.net,DIRECT
-DOMAIN-SUFFIX,alibaba.com,DIRECT
-DOMAIN-SUFFIX,alikunlun.com,DIRECT
-DOMAIN-SUFFIX,alipay.com,DIRECT
-DOMAIN-SUFFIX,amap.com,DIRECT
-DOMAIN-SUFFIX,amd.com,DIRECT
-DOMAIN-SUFFIX,ams.org,DIRECT
-DOMAIN-SUFFIX,animebytes.tv,DIRECT
-DOMAIN-SUFFIX,annualreviews.org,DIRECT
-DOMAIN-SUFFIX,aps.org,DIRECT
-DOMAIN-SUFFIX,ascelibrary.org,DIRECT
-DOMAIN-SUFFIX,asm.org,DIRECT
-DOMAIN-SUFFIX,asme.org,DIRECT
-DOMAIN-SUFFIX,astm.org,DIRECT
-DOMAIN-SUFFIX,autonavi.com,DIRECT
-DOMAIN-SUFFIX,awesome-hd.me,DIRECT
-DOMAIN-SUFFIX,b612.net,DIRECT
-DOMAIN-SUFFIX,baduziyuan.com,DIRECT
-DOMAIN-SUFFIX,battle.net,PROXY
-DOMAIN-SUFFIX,bdatu.com,DIRECT
-DOMAIN-SUFFIX,beitaichufang.com,DIRECT
-DOMAIN-SUFFIX,biliapi.com,DIRECT
-DOMAIN-SUFFIX,biliapi.net,DIRECT
-DOMAIN-SUFFIX,bilibili.com,DIRECT
-DOMAIN-SUFFIX,bilibili.tv,DIRECT
-DOMAIN-SUFFIX,bjango.com,DIRECT
-DOMAIN-SUFFIX,blizzard.com,PROXY
-DOMAIN-SUFFIX,bmj.com,DIRECT
-DOMAIN-SUFFIX,booking.com,DIRECT
-DOMAIN-SUFFIX,broadcasthe.net,DIRECT
-DOMAIN-SUFFIX,bstatic.com,DIRECT
-DOMAIN-SUFFIX,cailianpress.com,DIRECT
-DOMAIN-SUFFIX,cambridge.org,DIRECT
-DOMAIN-SUFFIX,camera360.com,DIRECT
-DOMAIN-SUFFIX,cas.org,DIRECT
-DOMAIN-SUFFIX,ccgslb.com,DIRECT
-DOMAIN-SUFFIX,ccgslb.net,DIRECT
-DOMAIN-SUFFIX,cctv.com,DIRECT
-DOMAIN-SUFFIX,cctvpic.com,DIRECT
-DOMAIN-SUFFIX,chdbits.co,DIRECT
-DOMAIN-SUFFIX,chinanetcenter.com,DIRECT
-DOMAIN-SUFFIX,chinaso.com,DIRECT
-DOMAIN-SUFFIX,chua.pro,DIRECT
-DOMAIN-SUFFIX,chuimg.com,DIRECT
-DOMAIN-SUFFIX,chunyu.mobi,DIRECT
-DOMAIN-SUFFIX,chushou.tv,DIRECT
-DOMAIN-SUFFIX,clarivate.com,DIRECT
-DOMAIN-SUFFIX,classix-unlimited.co.uk,DIRECT
-DOMAIN-SUFFIX,cmbchina.com,DIRECT
-DOMAIN-SUFFIX,cmbimg.com,DIRECT
-DOMAIN-SUFFIX,cn,DIRECT
-DOMAIN-SUFFIX,com-hs-hkdy.com,DIRECT
-DOMAIN-SUFFIX,ctrip.com,DIRECT
-DOMAIN-SUFFIX,czybjz.com,DIRECT
-DOMAIN-SUFFIX,dandanzan.com,DIRECT
-DOMAIN-SUFFIX,dfcfw.com,DIRECT
-DOMAIN-SUFFIX,didialift.com,DIRECT
-DOMAIN-SUFFIX,didiglobal.com,DIRECT
-DOMAIN-SUFFIX,dingtalk.com,DIRECT
-DOMAIN-SUFFIX,docschina.org,DIRECT
-DOMAIN-SUFFIX,douban.com,DIRECT
-DOMAIN-SUFFIX,doubanio.com,DIRECT
-DOMAIN-SUFFIX,douyu.com,DIRECT
-DOMAIN-SUFFIX,duokan.com,DIRECT
-DOMAIN-SUFFIX,dxycdn.com,DIRECT
-DOMAIN-SUFFIX,dytt8.net,DIRECT
-DOMAIN-SUFFIX,eastmoney.com,DIRECT
-DOMAIN-SUFFIX,ebscohost.com,DIRECT
-DOMAIN-SUFFIX,emerald.com,DIRECT
-DOMAIN-SUFFIX,empornium.me,DIRECT
-DOMAIN-SUFFIX,engineeringvillage.com,DIRECT
-DOMAIN-SUFFIX,eudic.net,DIRECT
-DOMAIN-SUFFIX,feiliao.com,DIRECT
-DOMAIN-SUFFIX,feng.com,DIRECT
-DOMAIN-SUFFIX,fengkongcloud.com,DIRECT
-DOMAIN-SUFFIX,fjhps.com,DIRECT
-DOMAIN-SUFFIX,frdic.com,DIRECT
-DOMAIN-SUFFIX,futu5.com,DIRECT
-DOMAIN-SUFFIX,futunn.com,DIRECT
-DOMAIN-SUFFIX,gandi.net,DIRECT
-DOMAIN-SUFFIX,gazellegames.net,DIRECT
-DOMAIN-SUFFIX,geilicdn.com,DIRECT
-DOMAIN-SUFFIX,getpricetag.com,PROXY
-DOMAIN-SUFFIX,gifshow.com,DIRECT
-DOMAIN-SUFFIX,godic.net,DIRECT
-DOMAIN-SUFFIX,gtimg.com,DIRECT
-DOMAIN-SUFFIX,hdbits.org,DIRECT
-DOMAIN-SUFFIX,hdchina.org,DIRECT
-DOMAIN-SUFFIX,hdhome.org,DIRECT
-DOMAIN-SUFFIX,hdsky.me,DIRECT
-DOMAIN-SUFFIX,hdslb.com,DIRECT
-DOMAIN-SUFFIX,hicloud.com,DIRECT
-DOMAIN-SUFFIX,hitv.com,DIRECT
-DOMAIN-SUFFIX,hongxiu.com,DIRECT
-DOMAIN-SUFFIX,hostbuf.com,DIRECT
-DOMAIN-SUFFIX,huxiucdn.com,DIRECT
-DOMAIN-SUFFIX,huya.com,DIRECT
-DOMAIN-SUFFIX,icetorrent.org,DIRECT
-DOMAIN-SUFFIX,icevirtuallibrary.com,DIRECT
-DOMAIN-SUFFIX,iciba.com,DIRECT
-DOMAIN-SUFFIX,idqqimg.com,DIRECT
-DOMAIN-SUFFIX,ieee.org,DIRECT
-DOMAIN-SUFFIX,iesdouyin.com,DIRECT
-DOMAIN-SUFFIX,igamecj.com,DIRECT
-DOMAIN-SUFFIX,imf.org,DIRECT
-DOMAIN-SUFFIX,infinitynewtab.com,DIRECT
-DOMAIN-SUFFIX,iop.org,DIRECT
-DOMAIN-SUFFIX,ip-cdn.com,DIRECT
-DOMAIN-SUFFIX,ip.la,DIRECT
-DOMAIN-SUFFIX,ipip.net,DIRECT
-DOMAIN-SUFFIX,ipv6-test.com,DIRECT
-DOMAIN-SUFFIX,iqiyi.com,DIRECT
-DOMAIN-SUFFIX,iqiyipic.com,DIRECT
-DOMAIN-SUFFIX,ithome.com,DIRECT
-DOMAIN-SUFFIX,jamanetwork.com,DIRECT
-DOMAIN-SUFFIX,java.com,DIRECT
-DOMAIN-SUFFIX,jd.com,DIRECT
-DOMAIN-SUFFIX,jd.hk,DIRECT
-DOMAIN-SUFFIX,jdpay.com,DIRECT
-DOMAIN-SUFFIX,jhu.edu,DIRECT
-DOMAIN-SUFFIX,jidian.im,DIRECT
-DOMAIN-SUFFIX,jpopsuki.eu,DIRECT
-DOMAIN-SUFFIX,jstor.org,DIRECT
-DOMAIN-SUFFIX,jstucdn.com,DIRECT
-DOMAIN-SUFFIX,kaiyanapp.com,DIRECT
-DOMAIN-SUFFIX,karger.com,DIRECT
-DOMAIN-SUFFIX,kaspersky-labs.com,DIRECT
-DOMAIN-SUFFIX,keepcdn.com,DIRECT
-DOMAIN-SUFFIX,keepfrds.com,DIRECT
-DOMAIN-SUFFIX,kkmh.com,DIRECT
-DOMAIN-SUFFIX,ksosoft.com,DIRECT
-DOMAIN-SUFFIX,kuyunbo.club,DIRECT
-DOMAIN-SUFFIX,libguides.com,DIRECT
-DOMAIN-SUFFIX,livechina.com,DIRECT
-DOMAIN-SUFFIX,lofter.com,DIRECT
-DOMAIN-SUFFIX,loli.net,DIRECT
-DOMAIN-SUFFIX,luojilab.com,DIRECT
-DOMAIN-SUFFIX,m-team.cc,PROXY
-DOMAIN-SUFFIX,madsrevolution.net,DIRECT
-DOMAIN-SUFFIX,maoyan.com,DIRECT
-DOMAIN-SUFFIX,maoyun.tv,DIRECT
-DOMAIN-SUFFIX,meipai.com,DIRECT
-DOMAIN-SUFFIX,meitu.com,DIRECT
-DOMAIN-SUFFIX,meituan.com,DIRECT
-DOMAIN-SUFFIX,meituan.net,DIRECT
-DOMAIN-SUFFIX,meitudata.com,DIRECT
-DOMAIN-SUFFIX,meitustat.com,DIRECT
-DOMAIN-SUFFIX,meixincdn.com,DIRECT
-DOMAIN-SUFFIX,mgtv.com,DIRECT
-DOMAIN-SUFFIX,mi-img.com,DIRECT
-DOMAIN-SUFFIX,microsoft.com,DIRECT
-DOMAIN-SUFFIX,miui.com,DIRECT
-DOMAIN-SUFFIX,miwifi.com,DIRECT
-DOMAIN-SUFFIX,mobike.com,DIRECT
-DOMAIN-SUFFIX,moke.com,DIRECT
-DOMAIN-SUFFIX,morethan.tv,DIRECT
-DOMAIN-SUFFIX,mpg.de,DIRECT
-DOMAIN-SUFFIX,msecnd.net,DIRECT
-DOMAIN-SUFFIX,mubu.com,DIRECT
-DOMAIN-SUFFIX,mxhichina.com,DIRECT
-DOMAIN-SUFFIX,myanonamouse.net,DIRECT
-DOMAIN-SUFFIX,myapp.com,DIRECT
-DOMAIN-SUFFIX,myilibrary.com,DIRECT
-DOMAIN-SUFFIX,myqcloud.com,DIRECT
-DOMAIN-SUFFIX,myzaker.com,DIRECT
-DOMAIN-SUFFIX,nanyangpt.com,DIRECT
-DOMAIN-SUFFIX,nature.com,DIRECT
-DOMAIN-SUFFIX,ncore.cc,DIRECT
-DOMAIN-SUFFIX,netease.com,DIRECT
-DOMAIN-SUFFIX,netspeedtestmaster.com,DIRECT
-DOMAIN-SUFFIX,nim-lang-cn.org,DIRECT
-DOMAIN-SUFFIX,nvidia.com,DIRECT
-DOMAIN-SUFFIX,oecd-ilibrary.org,DIRECT
-DOMAIN-SUFFIX,office365.com,DIRECT
-DOMAIN-SUFFIX,open.cd,DIRECT
-DOMAIN-SUFFIX,oracle.com,DIRECT
-DOMAIN-SUFFIX,osapublishing.org,DIRECT
-DOMAIN-SUFFIX,oup.com,DIRECT
-DOMAIN-SUFFIX,ourbits.club,DIRECT
-DOMAIN-SUFFIX,ourdvs.com,DIRECT
-DOMAIN-SUFFIX,outlook.com,DIRECT
-DOMAIN-SUFFIX,ovid.com,DIRECT
-DOMAIN-SUFFIX,oxfordartonline.com,DIRECT
-DOMAIN-SUFFIX,oxfordbibliographies.com,DIRECT
-DOMAIN-SUFFIX,oxfordmusiconline.com,DIRECT
-DOMAIN-SUFFIX,passthepopcorn.me,DIRECT
-DOMAIN-SUFFIX,paypal.com,DIRECT
-DOMAIN-SUFFIX,paypalobjects.com,DIRECT
-DOMAIN-SUFFIX,pnas.org,DIRECT
-DOMAIN-SUFFIX,privatehd.to,DIRECT
-DOMAIN-SUFFIX,proquest.com,DIRECT
-DOMAIN-SUFFIX,pstatp.com,DIRECT
-DOMAIN-SUFFIX,pterclub.com,DIRECT
-DOMAIN-SUFFIX,qdaily.com,DIRECT
-DOMAIN-SUFFIX,qhimg.com,DIRECT
-DOMAIN-SUFFIX,qhres.com,DIRECT
-DOMAIN-SUFFIX,qidian.com,DIRECT
-DOMAIN-SUFFIX,qq.com,DIRECT
-DOMAIN-SUFFIX,wechat.com,DIRECT
-IP-ASN,132203,DIRECT,no-resolve
-DOMAIN-SUFFIX,dns.pub,DIRECT
-DOMAIN-SUFFIX,doh.pub,DIRECT
-DOMAIN-SUFFIX,qyer.com,DIRECT
-DOMAIN-SUFFIX,qyerstatic.com,DIRECT
-DOMAIN-SUFFIX,raychase.net,DIRECT
-DOMAIN-SUFFIX,redacted.ch,DIRECT
-DOMAIN-SUFFIX,ronghub.com,DIRECT
-DOMAIN-SUFFIX,rsc.org,DIRECT
-DOMAIN-SUFFIX,ruguoapp.com,DIRECT
-DOMAIN-SUFFIX,s-microsoft.com,DIRECT
-DOMAIN-SUFFIX,s-reader.com,DIRECT
-DOMAIN-SUFFIX,sagepub.com,DIRECT
-DOMAIN-SUFFIX,sankuai.com,DIRECT
-DOMAIN-SUFFIX,sciencedirect.com,DIRECT
-DOMAIN-SUFFIX,sciencemag.org,PROXY
-DOMAIN-SUFFIX,scomper.me,DIRECT
-DOMAIN-SUFFIX,scopus.com,DIRECT
-DOMAIN-SUFFIX,seafile.com,DIRECT
-DOMAIN-SUFFIX,servicewechat.com,DIRECT
-DOMAIN-SUFFIX,siam.org,DIRECT
-DOMAIN-SUFFIX,sina.com,DIRECT
-DOMAIN-SUFFIX,sm.ms,DIRECT
-DOMAIN-SUFFIX,smzdm.com,DIRECT
-DOMAIN-SUFFIX,snapdrop.net,DIRECT
-DOMAIN-SUFFIX,snssdk.com,DIRECT
-DOMAIN-SUFFIX,snwx.com,DIRECT
-DOMAIN-SUFFIX,sogo.com,DIRECT
-DOMAIN-SUFFIX,sogou.com,DIRECT
-DOMAIN-SUFFIX,sogoucdn.com,DIRECT
-DOMAIN-SUFFIX,sohu-inc.com,DIRECT
-DOMAIN-SUFFIX,sohu.com,DIRECT
-DOMAIN-SUFFIX,sohucs.com,DIRECT
-DOMAIN-SUFFIX,soku.com,DIRECT
-DOMAIN-SUFFIX,spiedigitallibrary.org,DIRECT
-DOMAIN-SUFFIX,springer.com,DIRECT
-DOMAIN-SUFFIX,springerlink.com,DIRECT
-DOMAIN-SUFFIX,springsunday.net,DIRECT
-DOMAIN-SUFFIX,sspai.com,DIRECT
-DOMAIN-SUFFIX,staticdn.net,DIRECT
-DOMAIN-SUFFIX,steam-chat.com,DIRECT
-DOMAIN-SUFFIX,steamcdn-a.akamaihd.net,DIRECT
-DOMAIN-SUFFIX,steamcontent.com,DIRECT
-DOMAIN-SUFFIX,steamgames.com,DIRECT
-DOMAIN-SUFFIX,steampowered.com,DIRECT
-DOMAIN-SUFFIX,steamstat.us,DIRECT
-DOMAIN-SUFFIX,steamstatic.com,DIRECT
-DOMAIN-SUFFIX,steamusercontent.com,DIRECT
-DOMAIN-SUFFIX,takungpao.com,DIRECT
-DOMAIN-SUFFIX,tandfonline.com,DIRECT
-DOMAIN-SUFFIX,teamviewer.com,PROXY
-DOMAIN-SUFFIX,tencent-cloud.net,DIRECT
-DOMAIN-SUFFIX,tencent.com,DIRECT
-DOMAIN-SUFFIX,tenpay.com,DIRECT
-DOMAIN-SUFFIX,test-ipv6.com,DIRECT
-DOMAIN-SUFFIX,tianyancha.com,DIRECT
-DOMAIN-SUFFIX,tjupt.org,DIRECT
-DOMAIN-SUFFIX,tmall.com,DIRECT
-DOMAIN-SUFFIX,tmall.hk,DIRECT
-DOMAIN-SUFFIX,totheglory.im,DIRECT
-DOMAIN-SUFFIX,toutiao.com,DIRECT
-DOMAIN-SUFFIX,udache.com,DIRECT
-DOMAIN-SUFFIX,udacity.com,DIRECT
-DOMAIN-SUFFIX,un.org,DIRECT
-DOMAIN-SUFFIX,uni-bielefeld.de,DIRECT
-DOMAIN-SUFFIX,uning.com,DIRECT
-DOMAIN-SUFFIX,v-56.com,DIRECT
-DOMAIN-SUFFIX,visualstudio.com,DIRECT
-DOMAIN-SUFFIX,vmware.com,DIRECT
-DOMAIN-SUFFIX,wangsu.com,DIRECT
-DOMAIN-SUFFIX,weather.com,DIRECT
-DOMAIN-SUFFIX,webofknowledge.com,DIRECT
-DOMAIN-SUFFIX,wechat.com,DIRECT
-DOMAIN-SUFFIX,weibo.com,DIRECT
-DOMAIN-SUFFIX,weibocdn.com,DIRECT
-DOMAIN-SUFFIX,weico.cc,DIRECT
-DOMAIN-SUFFIX,weidian.com,DIRECT
-DOMAIN-SUFFIX,westlaw.com,DIRECT
-DOMAIN-SUFFIX,whatismyip.com,DIRECT
-DOMAIN-SUFFIX,wiley.com,DIRECT
-DOMAIN-SUFFIX,windows.com,DIRECT
-DOMAIN-SUFFIX,windowsupdate.com,DIRECT
-DOMAIN-SUFFIX,worldbank.org,DIRECT
-DOMAIN-SUFFIX,worldscientific.com,DIRECT
-DOMAIN-SUFFIX,xiachufang.com,DIRECT
-DOMAIN-SUFFIX,xiami.com,DIRECT
-DOMAIN-SUFFIX,xiami.net,DIRECT
-DOMAIN-SUFFIX,xiaomi.com,DIRECT
-DOMAIN-SUFFIX,xiaohongshu.com,DIRECT
-DOMAIN-SUFFIX,xhscdn.com,DIRECT
-DOMAIN-SUFFIX,ximalaya.com,DIRECT
-DOMAIN-SUFFIX,xinhuanet.com,DIRECT
-DOMAIN-SUFFIX,xmcdn.com,DIRECT
-DOMAIN-SUFFIX,yangkeduo.com,DIRECT
-DOMAIN-SUFFIX,ydstatic.com,DIRECT
-DOMAIN-SUFFIX,youku.com,DIRECT
-DOMAIN-SUFFIX,zhangzishi.cc,DIRECT
-DOMAIN-SUFFIX,zhihu.com,DIRECT
-DOMAIN-SUFFIX,zhimg.com,DIRECT
-DOMAIN-SUFFIX,zhuihd.com,DIRECT
-DOMAIN-SUFFIX,zimuzu.io,DIRECT
-DOMAIN-SUFFIX,zimuzu.tv,DIRECT
-DOMAIN-SUFFIX,zmz2019.com,DIRECT
-DOMAIN-SUFFIX,zmzapi.com,DIRECT
-DOMAIN-SUFFIX,zmzapi.net,DIRECT
-DOMAIN-SUFFIX,zmzfile.com,DIRECT
-DOMAIN-SUFFIX,manmanbuy.com,DIRECT
-DOMAIN,www-cdn.icloud.com.akadns.net,DIRECT
-DOMAIN-SUFFIX,aaplimg.com,DIRECT
-DOMAIN-SUFFIX,apple-cloudkit.com,DIRECT
-DOMAIN-SUFFIX,apple.co,DIRECT
-DOMAIN-SUFFIX,apple.com,DIRECT
-DOMAIN-SUFFIX,apple.news,DIRECT
-DOMAIN-SUFFIX,apple.com.cn,DIRECT
-DOMAIN-SUFFIX,appstore.com,DIRECT
-DOMAIN-SUFFIX,cdn-apple.com,DIRECT
-DOMAIN-SUFFIX,crashlytics.com,DIRECT
-DOMAIN-SUFFIX,icloud-content.com,DIRECT
-DOMAIN-SUFFIX,icloud.com,DIRECT
-DOMAIN-SUFFIX,icloud.com.cn,DIRECT
-DOMAIN-SUFFIX,me.com,DIRECT
-DOMAIN-SUFFIX,mzstatic.com,DIRECT
-DOMAIN-SUFFIX,v2ex.com,PROXY
-DOMAIN-SUFFIX,scdn.co,PROXY
-DOMAIN-SUFFIX,line.naver.jp,PROXY
-DOMAIN-SUFFIX,line.me,PROXY
-DOMAIN-SUFFIX,line-apps.com,PROXY
-DOMAIN-SUFFIX,line-cdn.net,PROXY
-DOMAIN-SUFFIX,line-scdn.net,PROXY
-USER-AGENT,Line*,PROXY
-DOMAIN-KEYWORD,blogspot,PROXY
-DOMAIN-KEYWORD,google,PROXY
-DOMAIN-SUFFIX,abc.xyz,PROXY
-DOMAIN-SUFFIX,goog,PROXY
-DOMAIN-SUFFIX,admin.recaptcha.net,PROXY
-DOMAIN-SUFFIX,ampproject.org,PROXY
-DOMAIN-SUFFIX,android.com,PROXY
-DOMAIN-SUFFIX,androidify.com,PROXY
-DOMAIN-SUFFIX,appspot.com,PROXY
-DOMAIN-SUFFIX,autodraw.com,PROXY
-DOMAIN-SUFFIX,blogger.com,PROXY
-DOMAIN-SUFFIX,capitalg.com,PROXY
-DOMAIN-SUFFIX,certificate-transparency.org,PROXY
-DOMAIN-SUFFIX,chrome.com,PROXY
-DOMAIN-SUFFIX,chromeexperiments.com,PROXY
-DOMAIN-SUFFIX,chromestatus.com,PROXY
-DOMAIN-SUFFIX,chromium.org,PROXY
-DOMAIN-SUFFIX,creativelab5.com,PROXY
-DOMAIN-SUFFIX,debug.com,PROXY
-DOMAIN-SUFFIX,deepmind.com,PROXY
-DOMAIN-SUFFIX,dialogflow.com,PROXY
-DOMAIN-SUFFIX,firebaseio.com,PROXY
-DOMAIN-SUFFIX,getmdl.io,PROXY
-DOMAIN-SUFFIX,getoutline.org,PROXY
-DOMAIN-SUFFIX,ggpht.com,PROXY
-DOMAIN-SUFFIX,gmail.com,PROXY
-DOMAIN-SUFFIX,gmodules.com,PROXY
-DOMAIN-SUFFIX,godoc.org,PROXY
-DOMAIN-SUFFIX,golang.org,PROXY
-DOMAIN-SUFFIX,gstatic.com,PROXY
-DOMAIN-SUFFIX,gv.com,PROXY
-DOMAIN-SUFFIX,gvt0.com,PROXY
-DOMAIN-SUFFIX,gvt1.com,PROXY
-DOMAIN-SUFFIX,gvt3.com,PROXY
-DOMAIN-SUFFIX,gwtproject.org,PROXY
-DOMAIN-SUFFIX,itasoftware.com,PROXY
-DOMAIN-SUFFIX,madewithcode.com,PROXY
-DOMAIN-SUFFIX,material.io,PROXY
-DOMAIN-SUFFIX,polymer-project.org,PROXY
-DOMAIN-SUFFIX,recaptcha.net,PROXY
-DOMAIN-SUFFIX,shattered.io,PROXY
-DOMAIN-SUFFIX,synergyse.com,PROXY
-DOMAIN-SUFFIX,telephony.goog,PROXY
-DOMAIN-SUFFIX,tensorflow.org,PROXY
-DOMAIN-SUFFIX,tfhub.dev,PROXY
-DOMAIN-SUFFIX,tiltbrush.com,PROXY
-DOMAIN-SUFFIX,waveprotocol.org,PROXY
-DOMAIN-SUFFIX,waymo.com,PROXY
-DOMAIN-SUFFIX,webmproject.org,PROXY
-DOMAIN-SUFFIX,webrtc.org,PROXY
-DOMAIN-SUFFIX,whatbrowser.org,PROXY
-DOMAIN-SUFFIX,widevine.com,PROXY
-DOMAIN-SUFFIX,x.company,PROXY
-DOMAIN-SUFFIX,xn--ngstr-lra8j.com,PROXY
-DOMAIN-SUFFIX,youtu.be,PROXY
-DOMAIN-SUFFIX,yt.be,PROXY
-DOMAIN-SUFFIX,ytimg.com,PROXY
-DOMAIN-SUFFIX,clubhouseapi.com,PROXY
-DOMAIN-SUFFIX,clubhouse.pubnub.com,PROXY
-DOMAIN-SUFFIX,joinclubhouse.com,PROXY
-DOMAIN-SUFFIX,ap3.agora.io,PROXY
-DOMAIN-KEYWORD,aka,PROXY
-DOMAIN-KEYWORD,facebook,PROXY
-DOMAIN-KEYWORD,youtube,PROXY
-DOMAIN-KEYWORD,twitter,PROXY
-DOMAIN-SUFFIX,instagram.com,PROXY
-DOMAIN-SUFFIX,cdninstagram.com,PROXY
-DOMAIN-KEYWORD,instagram,PROXY
-DOMAIN-SUFFIX,instagr.am,PROXY
-DOMAIN-KEYWORD,gmail,PROXY
-DOMAIN-KEYWORD,pixiv,PROXY
-DOMAIN-SUFFIX,fb.com,PROXY
-DOMAIN-SUFFIX,meta.com,PROXY
-DOMAIN-SUFFIX,twimg.com,PROXY
-DOMAIN-SUFFIX,x.com,PROXY
-DOMAIN-SUFFIX,t.co,PROXY
-DOMAIN-SUFFIX,kenengba.com,PROXY
-DOMAIN-SUFFIX,akamai.net,PROXY
-DOMAIN-SUFFIX,whatsapp.net,PROXY
-DOMAIN-SUFFIX,whatsapp.com,PROXY
-DOMAIN-SUFFIX,snapchat.com,PROXY
-DOMAIN-SUFFIX,amazonaws.com,PROXY
-DOMAIN-SUFFIX,angularjs.org,PROXY
-DOMAIN-SUFFIX,akamaihd.net,PROXY
-DOMAIN-SUFFIX,amazon.com,PROXY
-DOMAIN-SUFFIX,bit.ly,PROXY
-DOMAIN-SUFFIX,bitbucket.org,PROXY
-DOMAIN-SUFFIX,blog.com,PROXY
-DOMAIN-SUFFIX,blogcdn.com,PROXY
-DOMAIN-SUFFIX,blogsmithmedia.com,PROXY
-DOMAIN-SUFFIX,box.net,PROXY
-DOMAIN-SUFFIX,bloomberg.com,PROXY
-DOMAIN-SUFFIX,cl.ly,PROXY
-DOMAIN-SUFFIX,cloudfront.net,PROXY
-DOMAIN-SUFFIX,cloudflare.com,PROXY
-DOMAIN-SUFFIX,cocoapods.org,PROXY
-DOMAIN-SUFFIX,dribbble.com,PROXY
-DOMAIN-SUFFIX,dropbox.com,PROXY
-DOMAIN-SUFFIX,dropboxstatic.com,PROXY
-DOMAIN-SUFFIX,dropboxusercontent.com,PROXY
-DOMAIN-SUFFIX,docker.com,PROXY
-DOMAIN-SUFFIX,duckduckgo.com,PROXY
-DOMAIN-SUFFIX,digicert.com,PROXY
-DOMAIN-SUFFIX,dnsimple.com,PROXY
-DOMAIN-SUFFIX,edgecastcdn.net,PROXY
-DOMAIN-SUFFIX,engadget.com,PROXY
-DOMAIN-SUFFIX,eurekavpt.com,PROXY
-DOMAIN-SUFFIX,fb.me,PROXY
-DOMAIN-SUFFIX,fbcdn.net,PROXY
-DOMAIN-SUFFIX,fc2.com,PROXY
-DOMAIN-SUFFIX,feedburner.com,PROXY
-DOMAIN-SUFFIX,fabric.io,PROXY
-DOMAIN-SUFFIX,flickr.com,PROXY
-DOMAIN-SUFFIX,fastly.net,PROXY
-DOMAIN-SUFFIX,github.com,PROXY
-DOMAIN-SUFFIX,github.io,PROXY
-DOMAIN-SUFFIX,githubusercontent.com,PROXY
-DOMAIN-SUFFIX,goo.gl,PROXY
-DOMAIN-SUFFIX,godaddy.com,PROXY
-DOMAIN-SUFFIX,gravatar.com,PROXY
-DOMAIN-SUFFIX,imageshack.us,PROXY
-DOMAIN-SUFFIX,imgur.com,PROXY
-DOMAIN-SUFFIX,jshint.com,PROXY
-DOMAIN-SUFFIX,ift.tt,PROXY
-DOMAIN-SUFFIX,j.mp,PROXY
-DOMAIN-SUFFIX,kat.cr,PROXY
-DOMAIN-SUFFIX,linode.com,PROXY
-DOMAIN-SUFFIX,lithium.com,PROXY
-DOMAIN-SUFFIX,megaupload.com,PROXY
-DOMAIN-SUFFIX,mobile01.com,PROXY
-DOMAIN-SUFFIX,modmyi.com,PROXY
-DOMAIN-SUFFIX,nytimes.com,PROXY
-DOMAIN-SUFFIX,name.com,PROXY
-DOMAIN-SUFFIX,openvpn.net,PROXY
-DOMAIN-SUFFIX,openwrt.org,PROXY
-DOMAIN-SUFFIX,ow.ly,PROXY
-DOMAIN-SUFFIX,pinboard.in,PROXY
-DOMAIN-SUFFIX,ssl-images-amazon.com,PROXY
-DOMAIN-SUFFIX,sstatic.net,PROXY
-DOMAIN-SUFFIX,stackoverflow.com,PROXY
-DOMAIN-SUFFIX,staticflickr.com,PROXY
-DOMAIN-SUFFIX,squarespace.com,PROXY
-DOMAIN-SUFFIX,symcd.com,PROXY
-DOMAIN-SUFFIX,symcb.com,PROXY
-DOMAIN-SUFFIX,symauth.com,PROXY
-DOMAIN-SUFFIX,ubnt.com,PROXY
-DOMAIN-SUFFIX,thepiratebay.org,PROXY
-DOMAIN-SUFFIX,tumblr.com,PROXY
-DOMAIN-SUFFIX,twitch.tv,PROXY
-DOMAIN-SUFFIX,twitter.com,PROXY
-DOMAIN-SUFFIX,wikipedia.com,PROXY
-DOMAIN-SUFFIX,wikipedia.org,PROXY
-DOMAIN-SUFFIX,wikimedia.org,PROXY
-DOMAIN-SUFFIX,wordpress.com,PROXY
-DOMAIN-SUFFIX,wsj.com,PROXY
-DOMAIN-SUFFIX,wsj.net,PROXY
-DOMAIN-SUFFIX,wp.com,PROXY
-DOMAIN-SUFFIX,vimeo.com,PROXY
-DOMAIN-SUFFIX,tapbots.com,PROXY
-DOMAIN-SUFFIX,ykimg.com,DIRECT
-DOMAIN-SUFFIX,medium.com,PROXY
-DOMAIN-SUFFIX,fast.com,PROXY
-DOMAIN-SUFFIX,nflxvideo.net,PROXY
-DOMAIN-SUFFIX,linkedin.com,PROXY
-DOMAIN-SUFFIX,licdn.com,PROXY
-DOMAIN-SUFFIX,bing.com,PROXY
-DOMAIN-SUFFIX,zoom.us,PROXY
-DOMAIN-SUFFIX,soundcloud.com,PROXY
-DOMAIN-SUFFIX,sndcdn.com,PROXY
-DOMAIN,api.statsig.com,PROXY
-DOMAIN,browser-intake-datadoghq.com,PROXY
-DOMAIN,chat.openai.com.cdn.cloudflare.net,PROXY
-DOMAIN,o33249.ingest.sentry.io,PROXY
-DOMAIN,openai-api.arkoselabs.com,PROXY
-DOMAIN,openaicom-api-bdcpf8c6d2e9atf6.z01.azurefd.net,PROXY
-DOMAIN,openaicomproductionae4b.blob.core.windows.net,PROXY
-DOMAIN,production-openaicom-storage.azureedge.net,PROXY
-DOMAIN,static.cloudflareinsights.com,PROXY
-DOMAIN-KEYWORD,openaicom-api,PROXY
-DOMAIN-SUFFIX,algolia.net,PROXY
-DOMAIN-SUFFIX,auth0.com,PROXY
-DOMAIN-SUFFIX,cdn.cloudflare.net,PROXY
-DOMAIN-SUFFIX,challenges.cloudflare.com,PROXY
-DOMAIN-SUFFIX,chatgpt.livekit.cloud,PROXY
-DOMAIN-SUFFIX,client-api.arkoselabs.com,PROXY
-DOMAIN-SUFFIX,events.statsigapi.net,PROXY
-DOMAIN-SUFFIX,featuregates.org,PROXY
-DOMAIN-SUFFIX,host.livekit.cloud,PROXY
-DOMAIN-SUFFIX,identrust.com,PROXY
-DOMAIN-SUFFIX,intercom.io,PROXY
-DOMAIN-SUFFIX,intercomcdn.com,PROXY
-DOMAIN-SUFFIX,launchdarkly.com,PROXY
-DOMAIN-SUFFIX,oaistatic.com,PROXY
-DOMAIN-SUFFIX,oaiusercontent.com,PROXY
-DOMAIN-SUFFIX,observeit.net,PROXY
-DOMAIN-SUFFIX,openai.com,PROXY
-DOMAIN-SUFFIX,openaiapi-site.azureedge.net,PROXY
-DOMAIN-SUFFIX,openaicom.imgix.net,PROXY
-DOMAIN-SUFFIX,poe.com,PROXY
-DOMAIN-SUFFIX,segment.io,PROXY
-DOMAIN-SUFFIX,sentry.io,PROXY
-DOMAIN-SUFFIX,stripe.com,PROXY
-DOMAIN-SUFFIX,turn.livekit.cloud,PROXY
-IP-CIDR,24.199.123.28/32,PROXY,no-resolve
-IP-CIDR,45.76.214.191/32,PROXY,no-resolve
-IP-CIDR,64.23.132.171/32,PROXY,no-resolve
-IP-CIDR,143.198.200.27/32,PROXY,no-resolve
-IP-CIDR,159.89.204.203/32,PROXY,no-resolve
-DOMAIN-SUFFIX,t.me,PROXY
-DOMAIN-SUFFIX,tdesktop.com,PROXY
-DOMAIN-SUFFIX,telegra.ph,PROXY
-DOMAIN-SUFFIX,telegram.me,PROXY
-DOMAIN-SUFFIX,telegram.org,PROXY
-DOMAIN-SUFFIX,telesco.pe,PROXY
-IP-CIDR,91.108.4.0/22,PROXY,no-resolve
-IP-CIDR,91.108.8.0/22,PROXY,no-resolve
-IP-CIDR,91.108.12.0/22,PROXY,no-resolve
-IP-CIDR,91.108.16.0/22,PROXY,no-resolve
-IP-CIDR,91.108.56.0/22,PROXY,no-resolve
-IP-CIDR,109.239.140.0/24,PROXY,no-resolve
-IP-CIDR,149.154.160.0/20,PROXY,no-resolve
-IP-CIDR,2001:B28:F23D::/48,PROXY,no-resolve
-IP-CIDR,2001:B28:F23F::/48,PROXY,no-resolve
-IP-CIDR,2001:67C:4E8::/48,PROXY,no-resolve
-DOMAIN-SUFFIX,dnsleaktest.com,PROXY
-DOMAIN-SUFFIX,dnsleak.com,PROXY
-DOMAIN-SUFFIX,expressvpn.com,PROXY
-DOMAIN-SUFFIX,nordvpn.com,PROXY
-DOMAIN-SUFFIX,surfshark.com,PROXY
-DOMAIN-SUFFIX,ipleak.net,PROXY
-DOMAIN-SUFFIX,perfect-privacy.com,PROXY
-DOMAIN-SUFFIX,browserleaks.com,PROXY
-DOMAIN-SUFFIX,browserleaks.org,PROXY
-DOMAIN-SUFFIX,vpnunlimited.com,PROXY
-DOMAIN-SUFFIX,whoer.net,PROXY
-DOMAIN-SUFFIX,whrq.net,PROXY
-IP-CIDR,192.168.0.0/16,DIRECT
-IP-CIDR,10.0.0.0/8,DIRECT
-IP-CIDR,172.16.0.0/12,DIRECT
-IP-CIDR,127.0.0.0/8,DIRECT
-GEOIP,CN,DIRECT
-FINAL,PROXY
-""".strip()
+DIRECT_EXACT = [
+    "blzddist1-a.akamaihd.net", "download.jetbrains.com", "file-igamecj.akamaized.net", "images-cn.ssl-images-amazon.com", "officecdn-microsoft-com.akamaized.net", "speedtest.macpaw.com", "www-cdn.icloud.com.akadns.net",
+]
+
+PROXY_EXACT = [
+    "copilot.microsoft.com", "copilot.bing.com", "cdn.angruo.com", "api.statsig.com", "browser-intake-datadoghq.com", "chat.openai.com.cdn.cloudflare.net", "o33249.ingest.sentry.io", "openai-api.arkoselabs.com", "openaicom-api-bdcpf8c6d2e9atf6.z01.azurefd.net", "openaicomproductionae4b.blob.core.windows.net", "production-openaicom-storage.azureedge.net", "static.cloudflareinsights.com",
+]
+
+DIRECT_SUFFIX = [
+    "baidu.com", "baidubcr.com", "bdstatic.com", "yunjiasu-cdn.net", "taobao.com", "alicdn.com", "126.net", "127.net", "163.com", "163yun.com", "21cn.com", "343480.com", "360buyimg.com", "360in.com", "51ym.me", "71.am.com",
+    "8686c.com", "abchina.com", "accuweather.com", "acgvideo.com", "acm.org", "acs.org", "aicoinstorge.com", "aip.org", "air-matters.com", "air-matters.io", "aixifan.com", "akadns.net", "alibaba.com", "alikunlun.com", "alipay.com", "amap.com",
+    "amd.com", "ams.org", "animebytes.tv", "annualreviews.org", "aps.org", "ascelibrary.org", "asm.org", "asme.org", "astm.org", "autonavi.com", "awesome-hd.me", "b612.net", "baduziyuan.com", "bdatu.com", "beitaichufang.com", "biliapi.com",
+    "biliapi.net", "bilibili.com", "bilibili.tv", "bjango.com", "bmj.com", "booking.com", "broadcasthe.net", "bstatic.com", "cailianpress.com", "cambridge.org", "camera360.com", "cas.org", "ccgslb.com", "ccgslb.net", "cctv.com", "cctvpic.com",
+    "chdbits.co", "chinanetcenter.com", "chinaso.com", "chua.pro", "chuimg.com", "chunyu.mobi", "chushou.tv", "clarivate.com", "classix-unlimited.co.uk", "cmbchina.com", "cmbimg.com", "cn", "com-hs-hkdy.com", "ctrip.com", "czybjz.com", "dandanzan.com",
+    "dfcfw.com", "didialift.com", "didiglobal.com", "dingtalk.com", "docschina.org", "douban.com", "doubanio.com", "douyu.com", "duokan.com", "dxycdn.com", "dytt8.net", "eastmoney.com", "ebscohost.com", "emerald.com", "empornium.me", "engineeringvillage.com",
+    "eudic.net", "feiliao.com", "feng.com", "fengkongcloud.com", "fjhps.com", "frdic.com", "futu5.com", "futunn.com", "gandi.net", "gazellegames.net", "geilicdn.com", "gifshow.com", "godic.net", "gtimg.com", "hdbits.org", "hdchina.org",
+    "hdhome.org", "hdsky.me", "hdslb.com", "hicloud.com", "hitv.com", "hongxiu.com", "hostbuf.com", "huxiucdn.com", "huya.com", "icetorrent.org", "icevirtuallibrary.com", "iciba.com", "idqqimg.com", "ieee.org", "iesdouyin.com", "igamecj.com",
+    "imf.org", "infinitynewtab.com", "iop.org", "ip-cdn.com", "ip.la", "ipip.net", "ipv6-test.com", "iqiyi.com", "iqiyipic.com", "ithome.com", "jamanetwork.com", "java.com", "jd.com", "jd.hk", "jdpay.com", "jhu.edu",
+    "jidian.im", "jpopsuki.eu", "jstor.org", "jstucdn.com", "kaiyanapp.com", "karger.com", "kaspersky-labs.com", "keepcdn.com", "keepfrds.com", "kkmh.com", "ksosoft.com", "kuyunbo.club", "libguides.com", "livechina.com", "lofter.com", "loli.net",
+    "luojilab.com", "madsrevolution.net", "maoyan.com", "maoyun.tv", "meipai.com", "meitu.com", "meituan.com", "meituan.net", "meitudata.com", "meitustat.com", "meixincdn.com", "mgtv.com", "mi-img.com", "microsoft.com", "miui.com", "miwifi.com",
+    "mobike.com", "moke.com", "morethan.tv", "mpg.de", "msecnd.net", "mubu.com", "mxhichina.com", "myanonamouse.net", "myapp.com", "myilibrary.com", "myqcloud.com", "myzaker.com", "nanyangpt.com", "nature.com", "ncore.cc", "netease.com",
+    "netspeedtestmaster.com", "nim-lang-cn.org", "nvidia.com", "oecd-ilibrary.org", "office365.com", "open.cd", "oracle.com", "osapublishing.org", "oup.com", "ourbits.club", "ourdvs.com", "outlook.com", "ovid.com", "oxfordartonline.com", "oxfordbibliographies.com", "oxfordmusiconline.com",
+    "passthepopcorn.me", "paypal.com", "paypalobjects.com", "pnas.org", "privatehd.to", "proquest.com", "pstatp.com", "pterclub.com", "qdaily.com", "qhimg.com", "qhres.com", "qidian.com", "qq.com", "wechat.com", "dns.pub", "doh.pub",
+    "qyer.com", "qyerstatic.com", "raychase.net", "redacted.ch", "ronghub.com", "rsc.org", "ruguoapp.com", "s-microsoft.com", "s-reader.com", "sagepub.com", "sankuai.com", "sciencedirect.com", "scomper.me", "scopus.com", "seafile.com", "servicewechat.com",
+    "siam.org", "sina.com", "sm.ms", "smzdm.com", "snapdrop.net", "snssdk.com", "snwx.com", "sogo.com", "sogou.com", "sogoucdn.com", "sohu-inc.com", "sohu.com", "sohucs.com", "soku.com", "spiedigitallibrary.org", "springer.com",
+    "springerlink.com", "springsunday.net", "sspai.com", "staticdn.net", "steam-chat.com", "steamcdn-a.akamaihd.net", "steamcontent.com", "steamgames.com", "steampowered.com", "steamstat.us", "steamstatic.com", "steamusercontent.com", "takungpao.com", "tandfonline.com", "tencent-cloud.net", "tencent.com",
+    "tenpay.com", "test-ipv6.com", "tianyancha.com", "tjupt.org", "tmall.com", "tmall.hk", "totheglory.im", "toutiao.com", "udache.com", "udacity.com", "un.org", "uni-bielefeld.de", "uning.com", "v-56.com", "visualstudio.com", "vmware.com",
+    "wangsu.com", "weather.com", "webofknowledge.com", "wechat.com", "weibo.com", "weibocdn.com", "weico.cc", "weidian.com", "westlaw.com", "whatismyip.com", "wiley.com", "windows.com", "windowsupdate.com", "worldbank.org", "worldscientific.com", "xiachufang.com",
+    "xiami.com", "xiami.net", "xiaomi.com", "xiaohongshu.com", "xhscdn.com", "ximalaya.com", "xinhuanet.com", "xmcdn.com", "yangkeduo.com", "ydstatic.com", "youku.com", "zhangzishi.cc", "zhihu.com", "zhimg.com", "zhuihd.com", "zimuzu.io",
+    "zimuzu.tv", "zmz2019.com", "zmzapi.com", "zmzapi.net", "zmzfile.com", "manmanbuy.com", "aaplimg.com", "apple-cloudkit.com", "apple.co", "apple.com", "apple.news", "apple.com.cn", "appstore.com", "cdn-apple.com", "crashlytics.com", "icloud-content.com",
+    "icloud.com", "icloud.com.cn", "me.com", "mzstatic.com", "ykimg.com",
+]
+
+PROXY_SUFFIX = [
+    "apple-relay.akamaized.net", "apple-relay.apple.com", "apple-relay.cloudflare.com", "apple-relay.fastly-edge.com", "apple-relay.mask.apple-dns.net", "battle.net", "blizzard.com", "getpricetag.com", "m-team.cc", "sciencemag.org", "teamviewer.com", "v2ex.com", "scdn.co", "line.naver.jp", "line.me", "line-apps.com",
+    "line-cdn.net", "line-scdn.net", "abc.xyz", "goog", "admin.recaptcha.net", "ampproject.org", "android.com", "androidify.com", "appspot.com", "autodraw.com", "blogger.com", "capitalg.com", "certificate-transparency.org", "chrome.com", "chromeexperiments.com", "chromestatus.com",
+    "chromium.org", "creativelab5.com", "debug.com", "deepmind.com", "dialogflow.com", "firebaseio.com", "getmdl.io", "getoutline.org", "ggpht.com", "gmail.com", "gmodules.com", "godoc.org", "golang.org", "gstatic.com", "gv.com", "gvt0.com",
+    "gvt1.com", "gvt3.com", "gwtproject.org", "itasoftware.com", "madewithcode.com", "material.io", "polymer-project.org", "recaptcha.net", "shattered.io", "synergyse.com", "telephony.goog", "tensorflow.org", "tfhub.dev", "tiltbrush.com", "waveprotocol.org", "waymo.com",
+    "webmproject.org", "webrtc.org", "whatbrowser.org", "widevine.com", "x.company", "xn--ngstr-lra8j.com", "youtu.be", "yt.be", "ytimg.com", "clubhouseapi.com", "clubhouse.pubnub.com", "joinclubhouse.com", "ap3.agora.io", "instagram.com", "cdninstagram.com", "instagr.am",
+    "fb.com", "meta.com", "twimg.com", "x.com", "t.co", "kenengba.com", "akamai.net", "whatsapp.net", "whatsapp.com", "snapchat.com", "amazonaws.com", "angularjs.org", "akamaihd.net", "amazon.com", "bit.ly", "bitbucket.org",
+    "blog.com", "blogcdn.com", "blogsmithmedia.com", "box.net", "bloomberg.com", "cl.ly", "cloudfront.net", "cloudflare.com", "cocoapods.org", "dribbble.com", "dropbox.com", "dropboxstatic.com", "dropboxusercontent.com", "docker.com", "duckduckgo.com", "digicert.com",
+    "dnsimple.com", "edgecastcdn.net", "engadget.com", "eurekavpt.com", "fb.me", "fbcdn.net", "fc2.com", "feedburner.com", "fabric.io", "flickr.com", "fastly.net", "github.com", "github.io", "githubusercontent.com", "goo.gl", "godaddy.com",
+    "gravatar.com", "imageshack.us", "imgur.com", "jshint.com", "ift.tt", "j.mp", "kat.cr", "linode.com", "lithium.com", "megaupload.com", "mobile01.com", "modmyi.com", "nytimes.com", "name.com", "openvpn.net", "openwrt.org",
+    "ow.ly", "pinboard.in", "ssl-images-amazon.com", "sstatic.net", "stackoverflow.com", "staticflickr.com", "squarespace.com", "symcd.com", "symcb.com", "symauth.com", "ubnt.com", "thepiratebay.org", "tumblr.com", "twitch.tv", "twitter.com", "wikipedia.com",
+    "wikipedia.org", "wikimedia.org", "wordpress.com", "wsj.com", "wsj.net", "wp.com", "vimeo.com", "tapbots.com", "medium.com", "fast.com", "nflxvideo.net", "linkedin.com", "licdn.com", "bing.com", "zoom.us", "soundcloud.com",
+    "sndcdn.com", "algolia.net", "auth0.com", "cdn.cloudflare.net", "challenges.cloudflare.com", "chatgpt.livekit.cloud", "client-api.arkoselabs.com", "events.statsigapi.net", "featuregates.org", "host.livekit.cloud", "identrust.com", "intercom.io", "intercomcdn.com", "launchdarkly.com", "oaistatic.com", "oaiusercontent.com",
+    "observeit.net", "openai.com", "openaiapi-site.azureedge.net", "openaicom.imgix.net", "poe.com", "segment.io", "sentry.io", "stripe.com", "turn.livekit.cloud", "t.me", "tdesktop.com", "telegra.ph", "telegram.me", "telegram.org", "telesco.pe", "dnsleaktest.com",
+    "dnsleak.com", "expressvpn.com", "nordvpn.com", "surfshark.com", "ipleak.net", "perfect-privacy.com", "browserleaks.com", "browserleaks.org", "vpnunlimited.com", "whoer.net", "whrq.net",
+]
+
+DIRECT_KEYWORD = []
+
+PROXY_KEYWORD = [
+    "blogspot", "google", "aka", "facebook", "youtube", "twitter", "instagram", "gmail", "pixiv", "openaicom-api",
+]
+
+DIRECT_CIDR = [
+    "192.168.0.0/16", "10.0.0.0/8", "172.16.0.0/12", "127.0.0.0/8",
+]
+
+PROXY_CIDR = [
+    "24.199.123.28/32", "45.76.214.191/32", "64.23.132.171/32", "143.198.200.27/32", "159.89.204.203/32", "91.108.4.0/22", "91.108.8.0/22", "91.108.12.0/22", "91.108.16.0/22", "91.108.56.0/22", "109.239.140.0/24", "149.154.160.0/20", "2001:B28:F23D::/48", "2001:B28:F23F::/48", "2001:67C:4E8::/48",
+]
+
+IGNORED_RULES = [
+    "IP-ASN,132203,DIRECT,no-resolve", "USER-AGENT,Line*,PROXY",
+]
+
+ROUTE_FINAL = "proxy-best"
+USE_GEOIP_CN = True
 
 
-def _dedupe(items):
-    return list(dict.fromkeys(items))
-
-
-@lru_cache(maxsize=1)
-def _parse_rule_profile():
-    profile = {
-        "direct_exact": list(SKIP_PROXY_DOMAINS),
-        "proxy_exact": [],
-        "direct_suffix": list(SKIP_PROXY_SUFFIXES),
-        "proxy_suffix": [],
-        "direct_keyword": [],
-        "proxy_keyword": [],
-        "direct_cidr": [],
-        "proxy_cidr": [],
-        "ignored": [],
-        "final": "proxy-best",
-        "use_geoip_cn": False,
-    }
-
-    for raw in SHADOWROCKET_RULES.splitlines():
-        line = raw.strip()
-        if not line:
-            continue
-
-        parts = [part.strip() for part in line.split(",")]
-        kind = parts[0]
-
-        if kind == "DOMAIN":
-            bucket = "proxy_exact" if parts[2] == "PROXY" else "direct_exact"
-            profile[bucket].append(parts[1])
-            continue
-
-        if kind == "DOMAIN-SUFFIX":
-            bucket = "proxy_suffix" if parts[2] == "PROXY" else "direct_suffix"
-            profile[bucket].append(parts[1])
-            continue
-
-        if kind == "DOMAIN-KEYWORD":
-            bucket = "proxy_keyword" if parts[2] == "PROXY" else "direct_keyword"
-            profile[bucket].append(parts[1])
-            continue
-
-        if kind == "IP-CIDR":
-            bucket = "proxy_cidr" if parts[2] == "PROXY" else "direct_cidr"
-            profile[bucket].append(parts[1])
-            continue
-
-        if kind == "GEOIP" and parts[1] == "CN" and parts[2] == "DIRECT":
-            profile["use_geoip_cn"] = True
-            continue
-
-        if kind == "FINAL":
-            profile["final"] = "proxy-best" if parts[1] == "PROXY" else "direct"
-            continue
-
-        # Shadowrocket-only capabilities: keep them documented but don't force
-        # them into sing-box with an unsafe approximation.
-        if kind in {"USER-AGENT", "IP-ASN"}:
-            profile["ignored"].append(line)
-            continue
-
-        profile["ignored"].append(line)
-
-    for key in (
-        "direct_exact",
-        "proxy_exact",
-        "direct_suffix",
-        "proxy_suffix",
-        "direct_keyword",
-        "proxy_keyword",
-        "direct_cidr",
-        "proxy_cidr",
-    ):
-        profile[key] = _dedupe(profile[key])
-
-    return profile
+def _merge_unique(*groups):
+    merged = []
+    for group in groups:
+        for item in group:
+            if item not in merged:
+                merged.append(item)
+    return merged
 
 
 def build_dns_config(hosts):
     if not hosts:
         raise ValueError("hosts is required")
 
-    profile = _parse_rule_profile()
     rules = [
         {
             "domain": [hosts["reality"], hosts["tuic"], hosts["hy2"]],
             "action": "route",
-            "server": "dns-remote",
+            "server": "dns-direct",
         }
     ]
 
-    if profile["direct_exact"]:
-        rules.append(
-            {
-                "domain": profile["direct_exact"],
-                "action": "route",
-                "server": "dns-direct",
-            }
-        )
+    direct_exact = _merge_unique(SKIP_PROXY_DOMAINS, DNS_DIRECT_ONLY_DOMAINS, DIRECT_EXACT)
+    direct_suffix = _merge_unique(SKIP_PROXY_SUFFIXES, DNS_DIRECT_ONLY_SUFFIXES, DIRECT_SUFFIX)
 
-    if profile["direct_suffix"]:
-        rules.append(
-            {
-                "domain_suffix": profile["direct_suffix"],
-                "action": "route",
-                "server": "dns-direct",
-            }
-        )
-
-    if profile["direct_keyword"]:
-        rules.append(
-            {
-                "domain_keyword": profile["direct_keyword"],
-                "action": "route",
-                "server": "dns-direct",
-            }
-        )
+    if direct_exact:
+        rules.append({"domain": direct_exact, "action": "route", "server": "dns-direct"})
+    if PROXY_EXACT:
+        rules.append({"domain": PROXY_EXACT, "action": "route", "server": "dns-remote"})
+    if direct_suffix:
+        rules.append({"domain_suffix": direct_suffix, "action": "route", "server": "dns-direct"})
+    if PROXY_SUFFIX:
+        rules.append({"domain_suffix": PROXY_SUFFIX, "action": "route", "server": "dns-remote"})
+    if DIRECT_KEYWORD:
+        rules.append({"domain_keyword": DIRECT_KEYWORD, "action": "route", "server": "dns-direct"})
+    if PROXY_KEYWORD:
+        rules.append({"domain_keyword": PROXY_KEYWORD, "action": "route", "server": "dns-remote"})
 
     return {
         "servers": [
@@ -771,100 +133,48 @@ def build_dns_config(hosts):
                 "tag": "dns-remote",
                 "server": DNS_REMOTE_SERVER,
                 "path": DNS_REMOTE_PATH,
+                "detour": "proxy-best",
             },
         ],
         "rules": rules,
-        "final": "dns-remote",
+        "final": "dns-direct",
         "strategy": "prefer_ipv4",
     }
 
 
 def build_route_config():
-    profile = _parse_rule_profile()
     rules = [
         {"protocol": "dns", "action": "hijack-dns"},
         {"ip_is_private": True, "action": "route", "outbound": "direct"},
     ]
 
-    if profile["proxy_exact"]:
-        rules.append(
-            {
-                "domain": profile["proxy_exact"],
-                "action": "route",
-                "outbound": "proxy-best",
-            }
-        )
+    direct_exact = _merge_unique(SKIP_PROXY_DOMAINS, DIRECT_EXACT)
+    direct_suffix = _merge_unique(SKIP_PROXY_SUFFIXES, DIRECT_SUFFIX)
 
-    if profile["direct_exact"]:
-        rules.append(
-            {
-                "domain": profile["direct_exact"],
-                "action": "route",
-                "outbound": "direct",
-            }
-        )
-
-    if profile["proxy_suffix"]:
-        rules.append(
-            {
-                "domain_suffix": profile["proxy_suffix"],
-                "action": "route",
-                "outbound": "proxy-best",
-            }
-        )
-
-    if profile["direct_suffix"]:
-        rules.append(
-            {
-                "domain_suffix": profile["direct_suffix"],
-                "action": "route",
-                "outbound": "direct",
-            }
-        )
-
-    if profile["proxy_keyword"]:
-        rules.append(
-            {
-                "domain_keyword": profile["proxy_keyword"],
-                "action": "route",
-                "outbound": "proxy-best",
-            }
-        )
-
-    if profile["direct_keyword"]:
-        rules.append(
-            {
-                "domain_keyword": profile["direct_keyword"],
-                "action": "route",
-                "outbound": "direct",
-            }
-        )
-
-    if profile["proxy_cidr"]:
-        rules.append(
-            {
-                "ip_cidr": profile["proxy_cidr"],
-                "action": "route",
-                "outbound": "proxy-best",
-            }
-        )
-
-    if profile["direct_cidr"]:
-        rules.append(
-            {
-                "ip_cidr": profile["direct_cidr"],
-                "action": "route",
-                "outbound": "direct",
-            }
-        )
+    if direct_exact:
+        rules.append({"domain": direct_exact, "action": "route", "outbound": "direct"})
+    if PROXY_EXACT:
+        rules.append({"domain": PROXY_EXACT, "action": "route", "outbound": "proxy-best"})
+    if direct_suffix:
+        rules.append({"domain_suffix": direct_suffix, "action": "route", "outbound": "direct"})
+    if PROXY_SUFFIX:
+        rules.append({"domain_suffix": PROXY_SUFFIX, "action": "route", "outbound": "proxy-best"})
+    if DIRECT_KEYWORD:
+        rules.append({"domain_keyword": DIRECT_KEYWORD, "action": "route", "outbound": "direct"})
+    if PROXY_KEYWORD:
+        rules.append({"domain_keyword": PROXY_KEYWORD, "action": "route", "outbound": "proxy-best"})
+    if DIRECT_CIDR:
+        rules.append({"ip_cidr": DIRECT_CIDR, "action": "route", "outbound": "direct"})
+    if PROXY_CIDR:
+        rules.append({"ip_cidr": PROXY_CIDR, "action": "route", "outbound": "proxy-best"})
 
     route = {
         "rules": rules,
-        "final": profile["final"],
+        "final": ROUTE_FINAL,
         "auto_detect_interface": True,
     }
 
-    if profile["use_geoip_cn"]:
+    if USE_GEOIP_CN:
         route["rule_set"] = [
             {
                 "type": "remote",
