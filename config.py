@@ -41,7 +41,32 @@ def build_protocol_hosts(domain_root):
     }
 
 
-def build_server_config(creds, protocol_hosts=None):
+def build_server_outbounds(warp_mode):
+    if warp_mode == "proxy":
+        return [
+            {
+                "type": "socks",
+                "tag": "warp-out",
+                "server": "127.0.0.1",
+                "server_port": 40000,
+                "version": "5",
+                "udp_over_tcp": True,
+            },
+            {"type": "direct", "tag": "direct"},
+        ]
+
+    if warp_mode == "tun":
+        return [
+            # When the host itself is connected to WARP, regular direct traffic
+            # will be routed through the system tunnel by the OS.
+            {"type": "direct", "tag": "warp-out"},
+            {"type": "direct", "tag": "direct"},
+        ]
+
+    raise ValueError(f"unsupported warp_mode: {warp_mode}")
+
+
+def build_server_config(creds, protocol_hosts=None, warp_mode="proxy"):
     if not protocol_hosts:
         raise ValueError("protocol_hosts is required")
     hosts = protocol_hosts
@@ -180,27 +205,7 @@ def build_server_config(creds, protocol_hosts=None):
 
         ],
 
-        "outbounds": [
-
-            {
-
-                "type": "socks",
-
-                "tag": "warp-out",
-
-                "server": "127.0.0.1",
-
-                "server_port": 40000,
-
-                "version": "5",
-
-                "udp_over_tcp": True,
-
-            },
-
-            {"type": "direct", "tag": "direct"},
-
-        ],
+        "outbounds": build_server_outbounds(warp_mode),
 
         "route": {
 

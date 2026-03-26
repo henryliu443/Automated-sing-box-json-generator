@@ -3,7 +3,17 @@ import subprocess
 
 import cli_ui as ui
 
-WATCHDOG_SCRIPT = r"""#!/bin/bash
+def build_watchdog_script(warp_mode="proxy"):
+    if warp_mode == "proxy":
+        warp_proxy_block = 'WARP_PROXY="socks5h://127.0.0.1:40000"\n'
+        check_warp_cmd = 'curl -s --proxy "$WARP_PROXY" --max-time 5 "$CHECK_URL" | grep -Eq "warp=(on|plus)"'
+    elif warp_mode == "tun":
+        warp_proxy_block = ""
+        check_warp_cmd = 'curl -s --max-time 5 "$CHECK_URL" | grep -Eq "warp=(on|plus)"'
+    else:
+        raise ValueError(f"unsupported warp_mode: {warp_mode}")
+
+    script = """#!/bin/bash
 
 # --- 配置区 ---
 LOCK_FILE="/var/run/warp_watchdog.lock"
@@ -11,8 +21,8 @@ FAIL_COUNT_FILE="/var/run/warp_fail_count"
 LOG_FILE="/var/log/warp_monitor.log"
 
 MAX_RETRIES=2
-WARP_PROXY="socks5h://127.0.0.1:40000"
 CHECK_URL="https://www.cloudflare.com/cdn-cgi/trace"
+__WARP_PROXY_BLOCK__
 
 exec 9>"$LOCK_FILE"
 flock -n 9 || exit 0
@@ -22,7 +32,7 @@ check_native_net() {
 }
 
 check_warp_tunnel() {
-    curl -s --proxy "$WARP_PROXY" --max-time 5 "$CHECK_URL" | grep -q "colo="
+    __CHECK_WARP_CMD__
 }
 
 recover_warp() {
@@ -82,11 +92,12 @@ else
     echo "$(date): [观察] WARP 探测失败 (第 $NEXT_FAIL 次)，暂不操作。" >> "$LOG_FILE"
 fi
 """
+    return script.replace("__WARP_PROXY_BLOCK__", warp_proxy_block).replace("__CHECK_WARP_CMD__", check_warp_cmd)
 
 
-def deploy_watchdog(script_path="/root/warp_lazy_watchdog.sh"):
+def deploy_watchdog(script_path="/root/warp_lazy_watchdog.sh", warp_mode="proxy"):
     with open(script_path, "w", encoding="utf-8") as f:
-        f.write(WATCHDOG_SCRIPT)
+        f.write(build_watchdog_script(warp_mode))
     os.chmod(script_path, 0o755)
 
     cron_line = f"* * * * * {script_path}"

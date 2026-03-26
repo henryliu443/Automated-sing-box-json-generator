@@ -77,19 +77,20 @@ def write_server_config(server_config: dict[str, Any]):
         json.dump(server_config, f, indent=2, ensure_ascii=False)
 
 
-def restart_services_and_verify():
+def restart_services_and_verify(warp_mode):
     ui.section("服务重载")
     ui.step("重启 sing-box 并执行端口校验")
     try:
         subprocess.run(["systemctl", "restart", "sing-box"], check=True)
-        ensure_port_safety()
+        ensure_port_safety(warp_mode)
     except (subprocess.CalledProcessError, RuntimeError) as e:
         raise RuntimeError(f"重启或端口校验失败: {e}") from e
 
 
-def print_success_result(client_config, protocol_hosts):
+def print_success_result(client_config, protocol_hosts, warp_mode):
     ui.section("部署结果")
     ui.success("部署成功")
+    ui.kv("warp mode", warp_mode)
     ui.kv("reality", protocol_hosts["reality"])
     ui.kv("hy2", protocol_hosts["hy2"])
     ui.kv("tuic", protocol_hosts["tuic"])
@@ -104,7 +105,7 @@ def deploy():
     cf_token, cf_zone_id = resolve_cf_dns_credentials()
 
     ui.section("依赖检查")
-    ensure_dependencies()
+    warp_mode = ensure_dependencies()
 
     ui.section("证书签发")
     run_tls_issuance(protocol_hosts, cf_token, cf_zone_id)
@@ -112,7 +113,7 @@ def deploy():
     ui.section("配置生成")
     ui.step("生成服务端和客户端配置")
     creds = generate_credentials()
-    server_config = build_server_config(creds, protocol_hosts)
+    server_config = build_server_config(creds, protocol_hosts, warp_mode=warp_mode)
     client_config = build_client_config(creds, protocol_hosts)
 
     ui.step(f"写入服务端配置: {SING_BOX_CONFIG_PATH}")
@@ -120,9 +121,9 @@ def deploy():
 
     ui.section("守护任务")
     ui.step(f"部署 watchdog: {WATCHDOG_SCRIPT_PATH}")
-    deploy_watchdog(WATCHDOG_SCRIPT_PATH)
-    restart_services_and_verify()
-    print_success_result(client_config, protocol_hosts)
+    deploy_watchdog(WATCHDOG_SCRIPT_PATH, warp_mode=warp_mode)
+    restart_services_and_verify(warp_mode)
+    print_success_result(client_config, protocol_hosts, warp_mode)
 
 
 def main():

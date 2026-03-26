@@ -5,6 +5,9 @@ import time
 
 import cli_ui as ui
 
+WARP_PROXY_URL = "socks5h://127.0.0.1:40000"
+WARP_TRACE_URL = "https://www.cloudflare.com/cdn-cgi/trace"
+
 
 def run_cmd(cmd, timeout=1800):
     ui.command(cmd)
@@ -134,7 +137,7 @@ def print_port_snapshot():
     run_cmd("ss -tulnp")
 
 
-def ensure_port_safety():
+def ensure_port_safety(warp_mode="proxy"):
     ensure_ss_tool()
 
     # sing-box inbound ports
@@ -142,9 +145,10 @@ def ensure_port_safety():
     assert_port_allowed(7443, "udp", {"sing-box"})
     assert_port_allowed(9443, "udp", {"sing-box"})
 
-    # local WARP socks proxy
-    assert_port_allowed(40000, "tcp", {"warp-svc", "warp-go"})
-    assert_port_required(40000, "tcp", {"warp-svc", "warp-go"})
+    if warp_mode == "proxy":
+        # local WARP socks proxy
+        assert_port_allowed(40000, "tcp", {"warp-svc", "warp-go"})
+        assert_port_required(40000, "tcp", {"warp-svc", "warp-go"})
 
 
 def warp_active(service):
@@ -158,11 +162,7 @@ def warp_active(service):
     return result.stdout.strip() == "active"
 
 
-def warp_proxy_ready():
-    cmd = (
-        'curl -s --proxy "socks5h://127.0.0.1:40000" --max-time 6 '
-        "https://www.cloudflare.com/cdn-cgi/trace"
-    )
+def trace_reports_warp(cmd):
     result = subprocess.run(
         cmd,
         shell=True,
@@ -172,6 +172,16 @@ def warp_proxy_ready():
     )
     out = result.stdout
     return result.returncode == 0 and ("warp=on" in out or "warp=plus" in out)
+
+
+def warp_proxy_ready():
+    cmd = f'curl -s --proxy "{WARP_PROXY_URL}" --max-time 6 "{WARP_TRACE_URL}"'
+    return trace_reports_warp(cmd)
+
+
+def warp_tunnel_ready():
+    cmd = f'curl -s --max-time 6 "{WARP_TRACE_URL}"'
+    return trace_reports_warp(cmd)
 
 
 def singbox_installed():
@@ -187,23 +197,34 @@ def singbox_installed():
 
 def ensure_warp():
     if warp_proxy_ready():
-        ui.success("WARP 代理已就绪，跳过安装")
-        return
+        ui.success("检测到 WARP 本地代理模式 (127.0.0.1:40000)")
+        return "proxy"
+
+    if warp_tunnel_ready():
+        ui.success("检测到系统级 WARP 隧道模式")
+        return "tun"
 
     active_services = [svc for svc in ("warp-go", "warp-svc") if warp_active(svc)]
     if active_services:
         services = ", ".join(active_services)
         raise RuntimeError(
-            f"WARP 服务已运行({services})，但 127.0.0.1:40000 代理不可用；"
-            "请先开启 WARP 本地代理后再重试"
+            f"WARP 服务已运行({services})，但既未提供 127.0.0.1:40000 本地代理，"
+            "也未建立系统级 WARP 隧道；请先执行 warp-cli connect 或开启本地代理后再重试"
         )
 
     ui.step("安装 WARP")
     run_cmd("wget -O warp-go.sh https://gitlab.com/fscarmen/warp/-/raw/main/warp-go.sh")
     run_cmd("bash warp-go.sh 4")
 
-    if not warp_proxy_ready():
-        raise RuntimeError("WARP 安装后代理仍不可用(127.0.0.1:40000)")
+    if warp_proxy_ready():
+        ui.success("WARP 安装完成，当前使用本地代理模式")
+        return "proxy"
+
+    if warp_tunnel_ready():
+        ui.success("WARP 安装完成，当前使用系统隧道模式")
+        return "tun"
+
+    raise RuntimeError("WARP 安装后既未检测到本地代理，也未检测到系统级隧道")
 
 
 def ensure_singbox():
@@ -221,10 +242,11 @@ def ensure_singbox():
 def ensure_dependencies():
     require_root()
     ensure_ss_tool()
-    ensure_warp()
+    warp_mode = ensure_warp()
     ensure_singbox()
-    ensure_port_safety()
+    ensure_port_safety(warp_mode)
     print_port_snapshot()
+    return warp_mode
 
 
 if __name__ == "__main__":
