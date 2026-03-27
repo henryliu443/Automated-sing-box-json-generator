@@ -3,96 +3,250 @@ import subprocess
 
 import cli_ui as ui
 
+
 def build_watchdog_script(warp_mode="proxy"):
     if warp_mode == "proxy":
-        warp_proxy_block = 'WARP_PROXY="socks5h://127.0.0.1:40000"\n'
-        check_warp_cmd = 'curl -s --proxy "$WARP_PROXY" --max-time 5 "$CHECK_URL" | grep -Eq "warp=(on|plus)"'
+        warp_check_block = """
+check_warp_data_plane() {
+    if ! tcp_connect "$WARP_PROXY_HOST" "$WARP_PROXY_PORT" "$PROXY_CONNECT_TIMEOUT"; then
+        return 1
+    fi
+
+    timeout "$WARP_CHECK_TIMEOUT" curl -fsS --proxy "$WARP_PROXY" \\
+        --connect-timeout "$PROXY_CONNECT_TIMEOUT" \\
+        --max-time "$WARP_CHECK_TIMEOUT" \\
+        "$WARP_TRACE_URL" 2>/dev/null | grep -Eq 'warp=(on|plus)'
+}
+"""
     elif warp_mode == "tun":
-        warp_proxy_block = ""
-        check_warp_cmd = 'curl -s --max-time 5 "$CHECK_URL" | grep -Eq "warp=(on|plus)"'
+        warp_check_block = """
+check_warp_data_plane() {
+    timeout "$WARP_CHECK_TIMEOUT" curl -fsS \\
+        --connect-timeout "$PROXY_CONNECT_TIMEOUT" \\
+        --max-time "$WARP_CHECK_TIMEOUT" \\
+        "$WARP_TRACE_URL" 2>/dev/null | grep -Eq 'warp=(on|plus)'
+}
+"""
     else:
         raise ValueError(f"unsupported warp_mode: {warp_mode}")
 
-    script = """#!/bin/bash
+    script = f"""#!/usr/bin/env bash
+set -u
 
-# --- 配置区 ---
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+umask 022
+
 LOCK_FILE="/var/run/warp_watchdog.lock"
-FAIL_COUNT_FILE="/var/run/warp_fail_count"
-LOG_FILE="/var/log/warp_monitor.log"
+LOG_FILE="/var/log/warp_watchdog.log"
+FAIL_COUNT_FILE="/tmp/warp_fail_count"
+DISABLE_FLAG="/tmp/warp_disabled"
+STATUS_CACHE="/tmp/warp_status_cache.txt"
+WARP_HOOK="/usr/local/bin/warp-state-hook"
 
-MAX_RETRIES=2
-CHECK_URL="https://www.cloudflare.com/cdn-cgi/trace"
-__WARP_PROXY_BLOCK__
+WARP_TRACE_URL="https://www.cloudflare.com/cdn-cgi/trace"
+WARP_PROXY_HOST="127.0.0.1"
+WARP_PROXY_PORT="40000"
+WARP_PROXY="socks5h://${{WARP_PROXY_HOST}}:${{WARP_PROXY_PORT}}"
 
+DIRECT_CONNECT_TIMEOUT=4
+PROXY_CONNECT_TIMEOUT=5
+WARP_CHECK_TIMEOUT=10
+WARP_CLI_TIMEOUT=8
+
+DISABLE_AFTER_FAILS=2
+REREG_AFTER_FAILS=3
+
+DIRECT_TARGETS=(
+  "223.5.5.5:53"
+  "119.29.29.29:53"
+  "1.1.1.1:443"
+)
+
+mkdir -p "$(dirname "$LOCK_FILE")" "$(dirname "$LOG_FILE")"
+touch "$LOG_FILE"
 exec 9>"$LOCK_FILE"
 flock -n 9 || exit 0
 
-check_native_net() {
-    ping -c 2 -W 2 223.5.5.5 > /dev/null 2>&1
-}
+log() {{
+    printf '%s %s\\n' "$(date '+%F %T')" "$*" >> "$LOG_FILE"
+}}
 
-check_warp_tunnel() {
-    __CHECK_WARP_CMD__
-}
+tcp_connect() {{
+    local host="$1"
+    local port="$2"
+    local timeout_sec="$3"
+    timeout "$timeout_sec" bash -lc "exec 3<>/dev/tcp/$host/$port" >/dev/null 2>&1
+}}
 
-recover_warp() {
-    # 1) Prefer official warp-cli when available.
-    if command -v warp-cli >/dev/null 2>&1; then
-        warp-cli disconnect >/dev/null 2>&1 || true
-        sleep 2
-        warp-cli connect >/dev/null 2>&1 || true
-        sleep 2
-        check_warp_tunnel && return 0
-    fi
-
-    # 2) Fallback to restarting known services.
-    if command -v systemctl >/dev/null 2>&1; then
-        for svc in warp-go warp-svc; do
-            if systemctl status "$svc" >/dev/null 2>&1; then
-                systemctl restart "$svc" >/dev/null 2>&1 || true
-                sleep 2
-                check_warp_tunnel && return 0
-            fi
-        done
-    fi
-
+check_direct_net() {{
+    local target host port
+    for target in "${{DIRECT_TARGETS[@]}}"; do
+        host="${{target%%:*}}"
+        port="${{target##*:}}"
+        if tcp_connect "$host" "$port" "$DIRECT_CONNECT_TIMEOUT"; then
+            return 0
+        fi
+    done
     return 1
-}
+}}
 
-if ! check_native_net; then
-    echo "$(date): [静默] 本地网络无法连通 223.5.5.5，跳过 WARP 检测。" >> "$LOG_FILE"
-    exit 0
-fi
+check_daemon_hung() {{
+    timeout "$WARP_CLI_TIMEOUT" warp-cli --accept-tos --no-ansi status >"$STATUS_CACHE" 2>&1
+    local rc=$?
+    [ "$rc" -eq 124 ]
+}}
 
-if check_warp_tunnel; then
-    if [ -f "$FAIL_COUNT_FILE" ]; then
-        rm -f "$FAIL_COUNT_FILE"
-        echo "$(date): [恢复] WARP 链路已恢复。" >> "$LOG_FILE"
+{warp_check_block}
+
+touch_disable_flag() {{
+    local reason="$1"
+    if [ ! -f "$DISABLE_FLAG" ]; then
+        printf '%s %s\\n' "$(date '+%F %T')" "$reason" > "$DISABLE_FLAG"
+        log "[degrade] create $DISABLE_FLAG reason=$reason"
+        apply_state_hook disabled
     fi
-    exit 0
-fi
+}}
 
-CURRENT_FAIL=0
-if [ -f "$FAIL_COUNT_FILE" ]; then
-    CURRENT_FAIL=$(cat "$FAIL_COUNT_FILE")
-fi
-
-NEXT_FAIL=$((CURRENT_FAIL + 1))
-echo "$NEXT_FAIL" > "$FAIL_COUNT_FILE"
-
-if [ "$NEXT_FAIL" -ge "$MAX_RETRIES" ]; then
-    echo "$(date): [动作] 连续失败 $NEXT_FAIL 次，执行修复..." >> "$LOG_FILE"
-    if recover_warp; then
-        echo "$(date): [恢复] WARP 修复动作执行成功。" >> "$LOG_FILE"
-    else
-        echo "$(date): [失败] WARP 修复动作执行后仍未恢复。" >> "$LOG_FILE"
+clear_disable_flag() {{
+    if [ -f "$DISABLE_FLAG" ]; then
+        rm -f "$DISABLE_FLAG"
+        log "[degrade] remove $DISABLE_FLAG"
+        apply_state_hook enabled
     fi
+}}
+
+apply_state_hook() {{
+    local state="$1"
+
+    if [ -x "$WARP_HOOK" ]; then
+        timeout 20 "$WARP_HOOK" "$state" "$DISABLE_FLAG" >/dev/null 2>&1 || true
+    fi
+
+    if [ -f /etc/sing-box/config.warp.json ] && [ -f /etc/sing-box/config.direct.json ]; then
+        if [ "$state" = "disabled" ]; then
+            ln -sfn /etc/sing-box/config.direct.json /etc/sing-box/config.json
+        else
+            ln -sfn /etc/sing-box/config.warp.json /etc/sing-box/config.json
+        fi
+        systemctl restart sing-box >/dev/null 2>&1 || true
+    fi
+}}
+
+reset_fail_count() {{
     rm -f "$FAIL_COUNT_FILE"
-else
-    echo "$(date): [观察] WARP 探测失败 (第 $NEXT_FAIL 次)，暂不操作。" >> "$LOG_FILE"
+}}
+
+read_fail_count() {{
+    if [ -f "$FAIL_COUNT_FILE" ]; then
+        cat "$FAIL_COUNT_FILE"
+    else
+        echo 0
+    fi
+}}
+
+write_fail_count() {{
+    echo "$1" > "$FAIL_COUNT_FILE"
+}}
+
+safe_warp_cli() {{
+    timeout "$WARP_CLI_TIMEOUT" warp-cli --accept-tos --no-ansi "$@" >/dev/null 2>&1
+}}
+
+recover_retry() {{
+    log "[recover] stage=retry"
+    safe_warp_cli disconnect || true
+    sleep 2
+    safe_warp_cli connect || true
+    sleep 5
+}}
+
+recover_restart() {{
+    log "[recover] stage=restart"
+    pkill -9 -x warp-svc >/dev/null 2>&1 || true
+    sleep 1
+    systemctl reset-failed warp-svc >/dev/null 2>&1 || true
+    systemctl restart warp-svc >/dev/null 2>&1 || true
+    sleep 5
+    safe_warp_cli proxy port "$WARP_PROXY_PORT" || true
+    safe_warp_cli connect || true
+    sleep 5
+}}
+
+recover_reregister() {{
+    log "[recover] stage=reregister"
+    pkill -9 -x warp-svc >/dev/null 2>&1 || true
+    sleep 1
+    systemctl reset-failed warp-svc >/dev/null 2>&1 || true
+    systemctl restart warp-svc >/dev/null 2>&1 || true
+    sleep 5
+    safe_warp_cli disconnect || true
+    safe_warp_cli registration delete || true
+    sleep 2
+    timeout 20 warp-cli --accept-tos --no-ansi registration new >/dev/null 2>&1 || true
+    sleep 2
+    safe_warp_cli proxy port "$WARP_PROXY_PORT" || true
+    safe_warp_cli connect || true
+    sleep 6
+}}
+
+if ! check_direct_net; then
+    log "[skip] direct network failed, no WARP recovery"
+    exit 0
 fi
+
+daemon_hung=0
+if check_daemon_hung; then
+    daemon_hung=1
+fi
+
+if [ "$daemon_hung" -eq 0 ] && check_warp_data_plane; then
+    reset_fail_count
+    clear_disable_flag
+    log "[ok] direct=up warp=up"
+    exit 0
+fi
+
+fail_count=$(read_fail_count)
+fail_count=$((fail_count + 1))
+write_fail_count "$fail_count"
+
+if [ "$daemon_hung" -eq 1 ]; then
+    log "[fail] direct=up warp=down reason=daemon_hung fail_count=$fail_count"
+else
+    log "[fail] direct=up warp=down reason=data_plane fail_count=$fail_count"
+fi
+
+if [ "$fail_count" -ge "$DISABLE_AFTER_FAILS" ]; then
+    touch_disable_flag "warp_unhealthy_$fail_count"
+fi
+
+if [ "$daemon_hung" -eq 1 ]; then
+    recover_restart
+elif [ "$fail_count" -lt "$DISABLE_AFTER_FAILS" ]; then
+    recover_retry
+elif [ "$fail_count" -lt "$REREG_AFTER_FAILS" ]; then
+    recover_restart
+else
+    recover_reregister
+fi
+
+daemon_hung=0
+if check_daemon_hung; then
+    daemon_hung=1
+fi
+
+if [ "$daemon_hung" -eq 0 ] && check_warp_data_plane; then
+    reset_fail_count
+    clear_disable_flag
+    log "[recover] warp restored"
+    exit 0
+fi
+
+touch_disable_flag "warp_recovery_failed_$fail_count"
+log "[down] keep degraded state"
+exit 0
 """
-    return script.replace("__WARP_PROXY_BLOCK__", warp_proxy_block).replace("__CHECK_WARP_CMD__", check_warp_cmd)
+    return script
 
 
 def deploy_watchdog(script_path="/root/warp_lazy_watchdog.sh", warp_mode="proxy"):
