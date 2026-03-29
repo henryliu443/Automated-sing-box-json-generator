@@ -16,6 +16,7 @@
 * **严格 TLS 校验**：客户端 TUIC/Hy2 默认启用证书严格校验（不再 `insecure`）。
 * **端口冲突防护**：部署中自动检查 `23244/7443/9443` 端口归属；若使用 WARP 本地代理模式，额外检查 `40000`。
 * **自动化 Watchdog**：集成双重检测逻辑（Ping 检测 + Cloudflare Trace 穿透检测），发现 WARP 掉线自动重连。
+* **官方 WARP 安装**：默认安装 Cloudflare 官方 `cloudflare-warp`（`warp-svc` + `warp-cli`），并初始化本地代理模式。
 * **WARP 双模式兼容**：自动识别 WARP 本地代理模式 (`127.0.0.1:40000`) 与系统隧道模式 (`warp-cli connect`)。
 * **任务去重**：部署时自动清理旧的 `crontab` 任务，防止系统任务堆积。
 * **配置模块化**：安装检查、凭据生成、配置生成、Watchdog 部署已拆分为独立模块。
@@ -41,7 +42,7 @@ python3 main.py
 ### 🛠️ 部署逻辑说明
 
 1. **输入主域名**：脚本会提示输入主域名，自动生成三条协议子域名。
-2. **依赖检查/安装**：自动检查并确保 WARP、`sing-box` 可用，并自动识别 WARP 当前运行模式。
+2. **依赖检查/安装**：自动检查并确保官方 Cloudflare WARP（`warp-svc` / `warp-cli`）、`sing-box` 可用，并自动识别 WARP 当前运行模式。
 3. **签发证书**：通过 Cloudflare DNS-01 为 `tuic`/`hy2` 子域名签发证书。
 4. **生成凭据**：调用 `sing-box` 生成 UUID 与 Reality KeyPair，并生成随机密码。
 5. **写入配置**：
@@ -55,7 +56,7 @@ python3 main.py
 ### 📁 项目结构（当前）
 
 * `deploy.py`：核心部署流程（依赖检查、写配置、挂 watchdog、重启）
-* `installer.py`：root 校验与依赖安装检查（WARP 本地代理 / 系统隧道 / sing-box）
+* `installer.py`：root 校验与依赖安装检查（官方 `warp-svc` / `warp-cli`、WARP 本地代理 / 系统隧道、sing-box）
 * `credentials.py`：动态生成 UUID、Reality 密钥与随机密码
 * `config.py`：生成服务端/客户端配置 JSON（函数化）
 * `certs.py`：Cloudflare DNS-01 证书签发与安装（TUIC/Hy2）
