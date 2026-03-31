@@ -76,12 +76,7 @@ PROXY_CIDR = [
     "24.199.123.28/32", "45.76.214.191/32", "64.23.132.171/32", "143.198.200.27/32", "159.89.204.203/32", "91.108.4.0/22", "91.108.8.0/22", "91.108.12.0/22", "91.108.16.0/22", "91.108.56.0/22", "109.239.140.0/24", "149.154.160.0/20", "2001:B28:F23D::/48", "2001:B28:F23F::/48", "2001:67C:4E8::/48",
 ]
 
-IGNORED_RULES = [
-    "IP-ASN,132203,DIRECT,no-resolve", "USER-AGENT,Line*,PROXY",
-]
-
-# Keep unknown traffic on direct so a dead proxy pool does not take down
-# all TCP/UDP connectivity. Explicit proxy rules still use proxy-best.
+# 用于最后的默认路由
 ROUTE_FINAL = "direct"
 USE_GEOIP_CN = True
 
@@ -96,13 +91,18 @@ def _merge_unique(*groups):
 
 
 def build_dns_config(hosts):
+    """
+    针对 sing-box 1.11.0+ 迁移说明：
+    - DNS 规则中不再使用 action: "route"
+    - 直接在规则中使用 server 字段指定 DNS 服务标签
+    """
     if not hosts:
         raise ValueError("hosts is required")
 
+    # 1.11.0+ 新标准：去掉 action: "route"，直接写 server
     rules = [
         {
             "domain": [hosts["reality"], hosts["tuic"], hosts["hy2"]],
-            "action": "route",
             "server": "dns-direct",
         }
     ]
@@ -111,17 +111,17 @@ def build_dns_config(hosts):
     direct_suffix = _merge_unique(SKIP_PROXY_SUFFIXES, DNS_DIRECT_ONLY_SUFFIXES, DIRECT_SUFFIX)
 
     if direct_exact:
-        rules.append({"domain": direct_exact, "action": "route", "server": "dns-direct"})
+        rules.append({"domain": direct_exact, "server": "dns-direct"})
     if PROXY_EXACT:
-        rules.append({"domain": PROXY_EXACT, "action": "route", "server": "dns-remote"})
+        rules.append({"domain": PROXY_EXACT, "server": "dns-remote"})
     if direct_suffix:
-        rules.append({"domain_suffix": direct_suffix, "action": "route", "server": "dns-direct"})
+        rules.append({"domain_suffix": direct_suffix, "server": "dns-direct"})
     if PROXY_SUFFIX:
-        rules.append({"domain_suffix": PROXY_SUFFIX, "action": "route", "server": "dns-remote"})
+        rules.append({"domain_suffix": PROXY_SUFFIX, "server": "dns-remote"})
     if DIRECT_KEYWORD:
-        rules.append({"domain_keyword": DIRECT_KEYWORD, "action": "route", "server": "dns-direct"})
+        rules.append({"domain_keyword": DIRECT_KEYWORD, "server": "dns-direct"})
     if PROXY_KEYWORD:
-        rules.append({"domain_keyword": PROXY_KEYWORD, "action": "route", "server": "dns-remote"})
+        rules.append({"domain_keyword": PROXY_KEYWORD, "server": "dns-remote"})
 
     return {
         "servers": [
@@ -145,18 +145,29 @@ def build_dns_config(hosts):
 
 
 def build_route_config(sniff_inbound=None):
+    """
+    针对 sing-box 1.11.0+ 迁移说明：
+    - DNS 劫持使用 action: "hijack-dns"
+    - 嗅探使用 action: "sniff"
+    - 路由使用 action: "route"
+    """
     rules = [
+        # 1. DNS 拦截：1.11.0+ 废弃 dns 出站，改用 action
         {"protocol": "dns", "action": "hijack-dns"},
+        # 2. 私有 IP 绕过
         {"ip_is_private": True, "action": "route", "outbound": "direct"},
     ]
 
+    # 3. 处理嗅探与解析策略
     if sniff_inbound:
+        # 先解析，再嗅探，这是 1.11.0 推荐的逻辑顺序
         rules.insert(0, {"inbound": sniff_inbound, "action": "sniff", "timeout": "1s"})
         rules.insert(0, {"inbound": sniff_inbound, "action": "resolve", "strategy": "prefer_ipv4"})
 
     direct_exact = _merge_unique(SKIP_PROXY_DOMAINS, DIRECT_EXACT)
     direct_suffix = _merge_unique(SKIP_PROXY_SUFFIXES, DIRECT_SUFFIX)
 
+    # 4. 各种分流规则（使用 action: "route"）
     if direct_exact:
         rules.append({"domain": direct_exact, "action": "route", "outbound": "direct"})
     if PROXY_EXACT:
@@ -180,11 +191,13 @@ def build_route_config(sniff_inbound=None):
         "auto_detect_interface": True,
     }
 
+    # 5. GeoIP 规则补全
     if USE_GEOIP_CN:
         route["rule_set"] = [
             {
                 "type": "remote",
                 "tag": "geoip-cn",
+                "format": "binary",  # 明确格式
                 "url": GEOIP_CN_RULESET_URL,
             }
         ]
