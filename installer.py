@@ -15,6 +15,9 @@ WARP_TRACE_URL = "https://www.cloudflare.com/cdn-cgi/trace"
 WARP_APT_KEYRING = "/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg"
 WARP_APT_SOURCE = "/etc/apt/sources.list.d/cloudflare-client.list"
 WARP_YUM_REPO = "/etc/yum.repos.d/cloudflare-warp.repo"
+WARP_CLI_TIMEOUT = 20
+WARP_CONNECT_TIMEOUT = 30
+WARP_SERVICE_READY_TIMEOUT = 15
 
 
 def run_cmd(cmd, timeout=1800):
@@ -279,54 +282,93 @@ def warp_cli_cmd(args):
     return f"warp-cli --accept-tos --no-ansi {args}"
 
 
-def run_compatible_warp_cli(*args_variants):
-    last_output = ""
-    for args in args_variants:
-        cmd = warp_cli_cmd(args)
+def run_warp_cli(args, timeout=WARP_CLI_TIMEOUT, quiet=False, check=True):
+    cmd = warp_cli_cmd(args)
+    if not quiet:
         ui.command(cmd)
+
+    try:
         result = subprocess.run(
             cmd,
             shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            timeout=timeout,
         )
-        output = (result.stdout or "").strip()
-        if output:
-            print(output, flush=True)
-        if result.returncode == 0:
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(f"warp-cli 命令超时({timeout}s): {cmd}") from e
+
+    output = (result.stdout or "").strip()
+    if output and not quiet:
+        print(output, flush=True)
+
+    if check and result.returncode != 0:
+        detail = f"\n{output}" if output else ""
+        raise RuntimeError(f"warp-cli 命令执行失败: {cmd}{detail}")
+
+    return result.returncode, output
+
+
+def run_compatible_warp_cli(*args_variants, timeout=WARP_CLI_TIMEOUT):
+    last_output = ""
+    for args in args_variants:
+        try:
+            returncode, output = run_warp_cli(args, timeout=timeout, check=False)
+        except RuntimeError as e:
+            last_output = str(e)
+            continue
+        if returncode == 0:
             return output
-        last_output = output
+        last_output = output or f"exit code {returncode}"
 
     detail = f"\n{last_output}" if last_output else ""
     raise RuntimeError(f"warp-cli 命令执行失败，已尝试兼容语法: {args_variants}{detail}")
 
 
-def run_cmd_soft(cmd):
-    subprocess.run(
-        cmd,
-        shell=True,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        text=True,
+def run_cmd_soft(cmd, timeout=15):
+    try:
+        subprocess.run(
+            cmd,
+            shell=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        pass
+
+
+def warp_cli_responsive():
+    try:
+        returncode, output = run_warp_cli("status", timeout=5, quiet=True, check=False)
+    except RuntimeError:
+        return False
+    return returncode == 0 or bool(output)
+
+
+def wait_for_warp_cli_ready(timeout=WARP_SERVICE_READY_TIMEOUT):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if warp_active(WARP_SERVICE) and warp_cli_responsive():
+            return
+        time.sleep(1)
+    raise RuntimeError(
+        f"{WARP_SERVICE} 已启动，但 warp-cli 在 {timeout}s 内未准备就绪；"
+        "此时继续切换 mode warp 很容易卡死"
     )
 
 
 def warp_registration_exists():
-    result = subprocess.run(
-        warp_cli_cmd("registration show"),
-        shell=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    if result.returncode != 0:
+    try:
+        returncode, out = run_warp_cli("registration show", timeout=8, quiet=True, check=False)
+    except RuntimeError:
         return False
-    out = f"{result.stdout}\n{result.stderr}".strip()
-    return bool(out)
+    return returncode == 0 and bool(out)
 
 
-def wait_for_warp_mode(timeout=20, preferred_mode=None):
+def wait_for_warp_mode(timeout=45, preferred_mode=None):
     deadline = time.time() + timeout
     while time.time() < deadline:
         status = {
@@ -348,14 +390,28 @@ def configure_warpsvc_tunnel():
 
     ui.step("初始化 Cloudflare WARP 系统隧道模式")
     run_cmd(f"systemctl enable --now {WARP_SERVICE}")
-    run_cmd_soft(warp_cli_cmd("disconnect"))
+    wait_for_warp_cli_ready()
+    run_cmd_soft(warp_cli_cmd("disconnect"), timeout=8)
 
     if not warp_registration_exists():
-        run_compatible_warp_cli("registration new", "register")
+        run_compatible_warp_cli("registration new", "register", timeout=WARP_CLI_TIMEOUT)
 
-    run_cmd(warp_cli_cmd("tunnel protocol set MASQUE"))
-    run_compatible_warp_cli("mode warp", "set-mode warp")
-    run_cmd(warp_cli_cmd("connect"))
+    run_warp_cli("tunnel protocol set MASQUE", timeout=WARP_CLI_TIMEOUT)
+    try:
+        run_compatible_warp_cli("mode warp", "set-mode warp", timeout=WARP_CLI_TIMEOUT)
+    except RuntimeError as e:
+        raise RuntimeError(
+            "切换到 Cloudflare WARP 系统隧道模式失败或超时；"
+            "这通常意味着 warp-svc 尚未真正 ready，或 VPS 在接管全局链路时卡住"
+        ) from e
+
+    try:
+        run_warp_cli("connect", timeout=WARP_CONNECT_TIMEOUT)
+    except RuntimeError as e:
+        raise RuntimeError(
+            "Cloudflare WARP connect 失败或超时；"
+            "系统隧道模式已开始接管主机链路，但数据面没有在预期时间内就绪"
+        ) from e
 
 
 def singbox_installed():
