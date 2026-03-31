@@ -17,7 +17,8 @@
 * **端口冲突防护**：部署中自动检查 `23244/7443/9443` 端口归属；若使用 WARP 本地代理模式，额外检查 `40000`。
 * **自动化 Watchdog**：集成双重检测逻辑（Ping 检测 + Cloudflare Trace 穿透检测），发现 WARP 掉线自动重连。
 * **默认无日志落盘**：生成的 `sing-box` 配置默认关闭日志，Watchdog 也不再写入 `/var/log/warp_watchdog.log`。
-* **官方 WARP 安装**：默认安装 Cloudflare 官方 `cloudflare-warp`（`warp-svc` + `warp-cli`），并初始化系统级 WARP 隧道模式（`set-mode warp`）。
+* **官方 WARP 安装**：默认安装 Cloudflare 官方 `cloudflare-warp`（`warp-svc` + `warp-cli`），并初始化本地代理模式（`mode proxy` / `127.0.0.1:40000`）。
+* **宿主机 DNS 固定**：部署开始时会直接写入 VPS 本地 `/etc/resolv.conf`，将系统 DNS 固定为 Cloudflare `1.1.1.1 / 1.0.0.1`。
 * **WARP 双模式兼容**：自动识别 WARP 本地代理模式 (`127.0.0.1:40000`) 与系统隧道模式 (`warp-cli connect`)。
 * **任务去重**：部署时自动清理旧的 `crontab` 任务，防止系统任务堆积。
 * **配置模块化**：安装检查、凭据生成、配置生成、Watchdog 部署已拆分为独立模块。
