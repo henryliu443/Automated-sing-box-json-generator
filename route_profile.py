@@ -96,13 +96,16 @@ def _merge_unique(*groups):
 
 
 def build_dns_config(hosts):
+    """
+    1.12.0+ 迁移重点：
+    - 为拨号 DNS (如 DoH) 显式指定 domain_resolver
+    """
     if not hosts:
         raise ValueError("hosts is required")
 
     rules = [
         {
             "domain": [hosts["reality"], hosts["tuic"], hosts["hy2"]],
-            "action": "route",
             "server": "dns-direct",
         }
     ]
@@ -111,17 +114,17 @@ def build_dns_config(hosts):
     direct_suffix = _merge_unique(SKIP_PROXY_SUFFIXES, DNS_DIRECT_ONLY_SUFFIXES, DIRECT_SUFFIX)
 
     if direct_exact:
-        rules.append({"domain": direct_exact, "action": "route", "server": "dns-direct"})
+        rules.append({"domain": direct_exact, "server": "dns-direct"})
     if PROXY_EXACT:
-        rules.append({"domain": PROXY_EXACT, "action": "route", "server": "dns-remote"})
+        rules.append({"domain": PROXY_EXACT, "server": "dns-remote"})
     if direct_suffix:
-        rules.append({"domain_suffix": direct_suffix, "action": "route", "server": "dns-direct"})
+        rules.append({"domain_suffix": direct_suffix, "server": "dns-direct"})
     if PROXY_SUFFIX:
-        rules.append({"domain_suffix": PROXY_SUFFIX, "action": "route", "server": "dns-remote"})
+        rules.append({"domain_suffix": PROXY_SUFFIX, "server": "dns-remote"})
     if DIRECT_KEYWORD:
-        rules.append({"domain_keyword": DIRECT_KEYWORD, "action": "route", "server": "dns-direct"})
+        rules.append({"domain_keyword": DIRECT_KEYWORD, "server": "dns-direct"})
     if PROXY_KEYWORD:
-        rules.append({"domain_keyword": PROXY_KEYWORD, "action": "route", "server": "dns-remote"})
+        rules.append({"domain_keyword": PROXY_KEYWORD, "server": "dns-remote"})
 
     return {
         "servers": [
@@ -136,6 +139,7 @@ def build_dns_config(hosts):
                 "server": DNS_REMOTE_SERVER,
                 "path": DNS_REMOTE_PATH,
                 "detour": "proxy-best",
+                "domain_resolver": "dns-direct",
             },
         ],
         "rules": rules,
@@ -145,6 +149,10 @@ def build_dns_config(hosts):
 
 
 def build_route_config(sniff_inbound=None):
+    """
+    1.12.0+ 迁移重点：
+    - 增加 default_domain_resolver
+    """
     rules = [
         {"protocol": "dns", "action": "hijack-dns"},
         {"ip_is_private": True, "action": "route", "outbound": "direct"},
@@ -178,6 +186,7 @@ def build_route_config(sniff_inbound=None):
         "rules": rules,
         "final": ROUTE_FINAL,
         "auto_detect_interface": True,
+        "default_domain_resolver": "dns-direct",
     }
 
     if USE_GEOIP_CN:
@@ -185,6 +194,7 @@ def build_route_config(sniff_inbound=None):
             {
                 "type": "remote",
                 "tag": "geoip-cn",
+                "format": "binary",
                 "url": GEOIP_CN_RULESET_URL,
             }
         ]
