@@ -142,12 +142,15 @@ def build_dns_config(hosts):
     }
 
 
-def build_route_config():
+def build_route_config(sniff_inbound=None):
     rules = [
-        {"action": "sniff"},
         {"protocol": "dns", "action": "hijack-dns"},
         {"ip_is_private": True, "action": "route", "outbound": "direct"},
     ]
+
+    if sniff_inbound:
+        rules.insert(0, {"inbound": sniff_inbound, "action": "sniff", "timeout": "1s"})
+        rules.insert(0, {"inbound": sniff_inbound, "action": "resolve", "strategy": "prefer_ipv4"})
 
     direct_exact = _merge_unique(SKIP_PROXY_DOMAINS, DIRECT_EXACT)
     direct_suffix = _merge_unique(SKIP_PROXY_SUFFIXES, DIRECT_SUFFIX)

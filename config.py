@@ -2,6 +2,10 @@ from route_profile import TUN_EXCLUDED_ROUTES, build_dns_config, build_route_con
 
 
 REALITY_DECOY_SERVER = "react.dev"
+ANYTLS_INBOUND_TAG = "anytls-in"
+TUIC_INBOUND_TAG = "tuic-in"
+HY2_INBOUND_TAG = "hy2-in"
+CLIENT_TUN_INBOUND_TAG = "tun-in"
 
 REALITY_DECOY_PORT = 443
 
@@ -74,7 +78,7 @@ def build_server_config(creds, protocol_hosts=None, warp_mode="proxy"):
 
                 "type": "anytls",
 
-                "tag": "anytls-in",
+                "tag": ANYTLS_INBOUND_TAG,
 
                 "listen": "::",
 
@@ -136,7 +140,7 @@ def build_server_config(creds, protocol_hosts=None, warp_mode="proxy"):
 
                 "type": "tuic",
 
-                "tag": "tuic-in",
+                "tag": TUIC_INBOUND_TAG,
 
                 "listen": "::",
 
@@ -166,7 +170,7 @@ def build_server_config(creds, protocol_hosts=None, warp_mode="proxy"):
 
                 "type": "hysteria2",
 
-                "tag": "hy2-in",
+                "tag": HY2_INBOUND_TAG,
 
                 "listen": "::",
 
@@ -202,7 +206,17 @@ def build_server_config(creds, protocol_hosts=None, warp_mode="proxy"):
 
             "rules": [
                 {
-                    "inbound": ["anytls-in", "tuic-in", "hy2-in"],
+                    "inbound": ANYTLS_INBOUND_TAG,
+                    "action": "resolve",
+                    "strategy": "prefer_ipv4",
+                },
+                {
+                    "inbound": ANYTLS_INBOUND_TAG,
+                    "action": "sniff",
+                    "timeout": "1s",
+                },
+                {
+                    "inbound": [ANYTLS_INBOUND_TAG, TUIC_INBOUND_TAG, HY2_INBOUND_TAG],
                     "action": "route",
                     "outbound": "warp-out",
                 }
@@ -232,7 +246,7 @@ def build_client_config(creds, protocol_hosts=None):
 
                 "type": "tun",
 
-                "tag": "tun-in",
+                "tag": CLIENT_TUN_INBOUND_TAG,
 
                 "address": "172.19.0.1/30",
 
@@ -353,6 +367,6 @@ def build_client_config(creds, protocol_hosts=None):
 
         ],
 
-        "route": build_route_config(),
+        "route": build_route_config(sniff_inbound=CLIENT_TUN_INBOUND_TAG),
 
     }
