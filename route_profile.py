@@ -76,6 +76,12 @@ PROXY_CIDR = [
     "24.199.123.28/32", "45.76.214.191/32", "64.23.132.171/32", "143.198.200.27/32", "159.89.204.203/32", "91.108.4.0/22", "91.108.8.0/22", "91.108.12.0/22", "91.108.16.0/22", "91.108.56.0/22", "109.239.140.0/24", "149.154.160.0/20", "2001:B28:F23D::/48", "2001:B28:F23F::/48", "2001:67C:4E8::/48",
 ]
 
+IGNORED_RULES = [
+    "IP-ASN,132203,DIRECT,no-resolve", "USER-AGENT,Line*,PROXY",
+]
+
+# Keep unknown traffic on direct so a dead proxy pool does not take down
+# all TCP/UDP connectivity. Explicit proxy rules still use proxy-best.
 ROUTE_FINAL = "direct"
 USE_GEOIP_CN = True
 
@@ -90,16 +96,13 @@ def _merge_unique(*groups):
 
 
 def build_dns_config(hosts):
-    """
-    1.12.0+ 迁移重点：
-    - 为拨号 DNS (如 DoH) 显式指定 domain_resolver
-    """
     if not hosts:
         raise ValueError("hosts is required")
 
     rules = [
         {
             "domain": [hosts["reality"], hosts["tuic"], hosts["hy2"]],
+            "action": "route",
             "server": "dns-direct",
         }
     ]
@@ -108,17 +111,17 @@ def build_dns_config(hosts):
     direct_suffix = _merge_unique(SKIP_PROXY_SUFFIXES, DNS_DIRECT_ONLY_SUFFIXES, DIRECT_SUFFIX)
 
     if direct_exact:
-        rules.append({"domain": direct_exact, "server": "dns-direct"})
+        rules.append({"domain": direct_exact, "action": "route", "server": "dns-direct"})
     if PROXY_EXACT:
-        rules.append({"domain": PROXY_EXACT, "server": "dns-remote"})
+        rules.append({"domain": PROXY_EXACT, "action": "route", "server": "dns-remote"})
     if direct_suffix:
-        rules.append({"domain_suffix": direct_suffix, "server": "dns-direct"})
+        rules.append({"domain_suffix": direct_suffix, "action": "route", "server": "dns-direct"})
     if PROXY_SUFFIX:
-        rules.append({"domain_suffix": PROXY_SUFFIX, "server": "dns-remote"})
+        rules.append({"domain_suffix": PROXY_SUFFIX, "action": "route", "server": "dns-remote"})
     if DIRECT_KEYWORD:
-        rules.append({"domain_keyword": DIRECT_KEYWORD, "server": "dns-direct"})
+        rules.append({"domain_keyword": DIRECT_KEYWORD, "action": "route", "server": "dns-direct"})
     if PROXY_KEYWORD:
-        rules.append({"domain_keyword": PROXY_KEYWORD, "server": "dns-remote"})
+        rules.append({"domain_keyword": PROXY_KEYWORD, "action": "route", "server": "dns-remote"})
 
     return {
         "servers": [
@@ -133,8 +136,6 @@ def build_dns_config(hosts):
                 "server": DNS_REMOTE_SERVER,
                 "path": DNS_REMOTE_PATH,
                 "detour": "proxy-best",
-                # --- 新增：消除 1.12.0 警告 ---
-                "domain_resolver": "dns-direct"
             },
         ],
         "rules": rules,
@@ -144,10 +145,6 @@ def build_dns_config(hosts):
 
 
 def build_route_config(sniff_inbound=None):
-    """
-    1.12.0+ 迁移重点：
-    - 增加 default_domain_resolver
-    """
     rules = [
         {"protocol": "dns", "action": "hijack-dns"},
         {"ip_is_private": True, "action": "route", "outbound": "direct"},
@@ -181,8 +178,6 @@ def build_route_config(sniff_inbound=None):
         "rules": rules,
         "final": ROUTE_FINAL,
         "auto_detect_interface": True,
-        # --- 新增：为所有 Outbound 拨号提供默认解析器，消除警告 ---
-        "default_domain_resolver": "dns-direct"
     }
 
     if USE_GEOIP_CN:
@@ -190,7 +185,6 @@ def build_route_config(sniff_inbound=None):
             {
                 "type": "remote",
                 "tag": "geoip-cn",
-                "format": "binary",
                 "url": GEOIP_CN_RULESET_URL,
             }
         ]
