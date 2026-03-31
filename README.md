@@ -17,6 +17,7 @@
 * **端口冲突防护**：部署中自动检查 `23244/7443/9443` 端口归属；若使用 WARP 本地代理模式，额外检查 `40000`。
 * **自动化 Watchdog**：集成双重检测逻辑（Ping 检测 + Cloudflare Trace 穿透检测），发现 WARP 掉线自动重连。
 * **默认无日志落盘**：生成的 `sing-box` 配置默认关闭日志，Watchdog 也不再写入 `/var/log/warp_watchdog.log`。
+* **固定 sing-box 版本**：安装阶段固定使用 `v1.13.0-beta.7`，避免被上游最新版本行为变更影响。
 * **官方 WARP 安装**：默认安装 Cloudflare 官方 `cloudflare-warp`（`warp-svc` + `warp-cli`），并初始化本地代理模式（`mode proxy` / `127.0.0.1:40000`）。
 * **WARP 双模式兼容**：自动识别 WARP 本地代理模式 (`127.0.0.1:40000`) 与系统隧道模式 (`warp-cli connect`)。
 * **任务去重**：部署时自动清理旧的 `crontab` 任务，防止系统任务堆积。

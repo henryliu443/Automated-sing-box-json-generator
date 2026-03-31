@@ -22,6 +22,20 @@ SYSTEM_DNS_SERVERS = ("1.1.1.1", "1.0.0.1")
 WARP_CLI_TIMEOUT = 20
 WARP_CONNECT_TIMEOUT = 30
 WARP_SERVICE_READY_TIMEOUT = 15
+SINGBOX_VERSION = "1.13.0-beta.7"
+SINGBOX_RELEASE_TAG = f"v{SINGBOX_VERSION}"
+SINGBOX_DOWNLOAD_BASE = f"https://github.com/SagerNet/sing-box/releases/download/{SINGBOX_RELEASE_TAG}"
+SINGBOX_ARCH_MAP = {
+    "x86_64": "amd64",
+    "amd64": "amd64",
+    "aarch64": "arm64",
+    "arm64": "arm64",
+    "i386": "386",
+    "i686": "386",
+    "armv7l": "armv7",
+    "armv6l": "armv6",
+    "armv5l": "armv5",
+}
 SINGBOX_SERVICE_NAME = "sing-box"
 SINGBOX_SERVICE_OVERRIDE_DIR = f"/etc/systemd/system/{SINGBOX_SERVICE_NAME}.service.d"
 SINGBOX_SERVICE_OVERRIDE_PATH = f"{SINGBOX_SERVICE_OVERRIDE_DIR}/override.conf"
@@ -499,6 +513,20 @@ def resolve_singbox_path():
     return path
 
 
+def resolve_singbox_arch():
+    machine = os.uname().machine.lower()
+    arch = SINGBOX_ARCH_MAP.get(machine)
+    if arch:
+        return arch
+    raise RuntimeError(f"暂不支持当前 CPU 架构自动安装 sing-box: {machine}")
+
+
+def build_singbox_download_url():
+    arch = resolve_singbox_arch()
+    asset = f"sing-box-{SINGBOX_VERSION}-linux-{arch}.tar.gz"
+    return f"{SINGBOX_DOWNLOAD_BASE}/{asset}", asset
+
+
 def singbox_runnable(binary_path=None):
     path = binary_path or resolve_singbox_path()
     if not path:
@@ -515,6 +543,31 @@ def singbox_runnable(binary_path=None):
         return False
 
     return result.returncode == 0
+
+
+def get_singbox_version(binary_path=None):
+    path = binary_path or resolve_singbox_path()
+    if not path:
+        return None
+
+    try:
+        result = subprocess.run(
+            [path, "version"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    except OSError:
+        return None
+
+    if result.returncode != 0:
+        return None
+
+    first_line = result.stdout.splitlines()[0].strip() if result.stdout else ""
+    match = re.search(r"sing-box version\s+(.+)", first_line)
+    if not match:
+        return None
+    return match.group(1).strip()
 
 
 def read_singbox_service_execstart():
@@ -582,6 +635,23 @@ def ensure_singbox_service_execstart():
     ui.info(f"已修正 sing-box systemd 启动路径: {target_execstart}")
 
 
+def install_singbox_pinned():
+    download_url, archive_name = build_singbox_download_url()
+    arch = resolve_singbox_arch()
+    extract_dir = run_cmd("mktemp -d").strip()
+    archive_path = os.path.join(extract_dir, archive_name)
+    package_dir = os.path.join(extract_dir, f"sing-box-{SINGBOX_VERSION}-linux-{arch}")
+    binary_path = os.path.join(package_dir, "sing-box")
+
+    ui.info(f"固定安装 sing-box 版本: {SINGBOX_RELEASE_TAG}")
+    run_cmd(f"curl -fsSL -o {shlex.quote(archive_path)} {shlex.quote(download_url)}")
+    run_cmd(f"tar -xzf {shlex.quote(archive_path)} -C {shlex.quote(extract_dir)}")
+    if not os.path.isfile(binary_path):
+        raise RuntimeError(f"下载包中未找到 sing-box 可执行文件: {binary_path}")
+
+    run_cmd(f"install -m 755 {shlex.quote(binary_path)} /usr/bin/sing-box")
+
+
 def ensure_warp():
     if warp_proxy_ready():
         ui.success("检测到 WARP 本地代理模式 (127.0.0.1:40000)")
@@ -616,22 +686,28 @@ def ensure_warp():
 
 
 def ensure_singbox():
-    if singbox_installed() and singbox_runnable():
+    installed_version = get_singbox_version()
+    if singbox_installed() and singbox_runnable() and installed_version == SINGBOX_VERSION:
         ui.success("sing-box 已存在")
         ensure_singbox_service_execstart()
         return
 
-    if singbox_installed():
+    if singbox_installed() and installed_version and installed_version != SINGBOX_VERSION:
+        ui.warning(
+            f"检测到 sing-box 当前版本为 {installed_version}，"
+            f"将切换到固定版本 {SINGBOX_VERSION}"
+        )
+    elif singbox_installed():
         ui.warning("检测到 sing-box 二进制存在但不可执行，尝试重新安装")
 
-    ui.step("安装 sing-box")
-    run_cmd("curl -fsSL -o install.sh https://sing-box.app/install.sh")
-    run_cmd("sh install.sh")
-    if not singbox_installed() or not singbox_runnable():
+    ui.step(f"安装 sing-box {SINGBOX_RELEASE_TAG}")
+    install_singbox_pinned()
+    installed_version = get_singbox_version()
+    if not singbox_installed() or not singbox_runnable() or installed_version != SINGBOX_VERSION:
         binary_path = resolve_singbox_path() or "(missing)"
         raise RuntimeError(
-            f"sing-box 安装后仍不可执行: {binary_path}\n"
-            "请检查二进制架构、执行权限或系统依赖是否缺失"
+            f"sing-box 安装后版本异常或不可执行: {binary_path}\n"
+            f"期望版本: {SINGBOX_VERSION}，当前版本: {installed_version or '(unknown)'}"
         )
     ensure_singbox_service_execstart()
 
