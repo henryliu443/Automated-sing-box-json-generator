@@ -179,7 +179,6 @@ def ensure_port_safety(warp_mode="proxy"):
     # sing-box inbound ports
     assert_port_allowed(23244, "tcp", {"sing-box"})
     assert_port_allowed(7443, "udp", {"sing-box"})
-    assert_port_allowed(9443, "udp", {"sing-box"})
 
     if warp_mode == "proxy":
         # local WARP socks proxy
