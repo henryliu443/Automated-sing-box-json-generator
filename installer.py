@@ -36,12 +36,6 @@ SINGBOX_ARCH_MAP = {
     "armv6l": "armv6",
     "armv5l": "armv5",
 }
-SINGBOX_SERVICE_NAME = "sing-box"
-SINGBOX_SERVICE_OVERRIDE_DIR = f"/etc/systemd/system/{SINGBOX_SERVICE_NAME}.service.d"
-SINGBOX_SERVICE_OVERRIDE_PATH = f"{SINGBOX_SERVICE_OVERRIDE_DIR}/override.conf"
-SINGBOX_DEFAULT_EXEC_ARGS = ("run", "-D", "/var/lib/sing-box", "-C", "/etc/sing-box")
-
-
 def run_cmd(cmd, timeout=1800):
     ui.command(cmd)
     proc = subprocess.Popen(
@@ -570,71 +564,6 @@ def get_singbox_version(binary_path=None):
     return match.group(1).strip()
 
 
-def read_singbox_service_execstart():
-    result = subprocess.run(
-        ["systemctl", "cat", SINGBOX_SERVICE_NAME],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    if result.returncode != 0:
-        return None
-
-    execstart = None
-    for raw_line in result.stdout.splitlines():
-        line = raw_line.strip()
-        if not line.startswith("ExecStart="):
-            continue
-        value = line.split("=", 1)[1].strip()
-        if value:
-            execstart = value
-    return execstart
-
-
-def _render_execstart(binary_path, current_execstart=None):
-    if current_execstart:
-        try:
-            tokens = shlex.split(current_execstart)
-        except ValueError:
-            tokens = []
-        if tokens:
-            prefix = ""
-            if tokens[0].startswith("-"):
-                prefix = "-"
-                tokens[0] = tokens[0][1:]
-            tokens[0] = f"{prefix}{binary_path}"
-            return shlex.join(tokens)
-
-    return shlex.join([binary_path, *SINGBOX_DEFAULT_EXEC_ARGS])
-
-
-def ensure_singbox_service_execstart():
-    binary_path = resolve_singbox_path()
-    if not binary_path:
-        raise RuntimeError("未找到 sing-box 可执行文件，无法修正 systemd 服务路径")
-
-    current_execstart = read_singbox_service_execstart()
-    target_execstart = shlex.join([binary_path, *SINGBOX_DEFAULT_EXEC_ARGS])
-
-    if current_execstart:
-        try:
-            current_tokens = shlex.split(current_execstart)
-        except ValueError:
-            current_tokens = []
-        current_binary = current_tokens[0].lstrip("-") if current_tokens else ""
-        if current_binary == binary_path and os.path.isfile(current_binary):
-            return
-
-    os.makedirs(SINGBOX_SERVICE_OVERRIDE_DIR, exist_ok=True)
-    with open(SINGBOX_SERVICE_OVERRIDE_PATH, "w", encoding="utf-8") as f:
-        f.write("[Service]\n")
-        f.write("ExecStart=\n")
-        f.write(f"ExecStart={target_execstart}\n")
-
-    subprocess.run(["systemctl", "daemon-reload"], check=True)
-    ui.info(f"已修正 sing-box systemd 启动路径: {target_execstart}")
-
-
 def install_singbox_pinned():
     download_url, archive_name = build_singbox_download_url()
     arch = resolve_singbox_arch()
@@ -689,7 +618,6 @@ def ensure_singbox():
     installed_version = get_singbox_version()
     if singbox_installed() and singbox_runnable() and installed_version == SINGBOX_VERSION:
         ui.success("sing-box 已存在")
-        ensure_singbox_service_execstart()
         return
 
     if singbox_installed() and installed_version and installed_version != SINGBOX_VERSION:
@@ -709,7 +637,6 @@ def ensure_singbox():
             f"sing-box 安装后版本异常或不可执行: {binary_path}\n"
             f"期望版本: {SINGBOX_VERSION}，当前版本: {installed_version or '(unknown)'}"
         )
-    ensure_singbox_service_execstart()
 
 
 def ensure_dependencies():
