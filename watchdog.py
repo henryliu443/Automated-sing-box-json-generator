@@ -43,6 +43,7 @@ STATUS_CACHE="/tmp/warp_status_cache.txt"
 WARP_HOOK="/usr/local/bin/warp-state-hook"
 
 WARP_TRACE_URL="https://www.cloudflare.com/cdn-cgi/trace"
+WARP_MODE="{warp_mode}"
 WARP_PROXY_HOST="127.0.0.1"
 WARP_PROXY_PORT="40000"
 WARP_PROXY="socks5h://${{WARP_PROXY_HOST}}:${{WARP_PROXY_PORT}}"
@@ -150,6 +151,31 @@ safe_warp_cli() {{
     timeout "$WARP_CLI_TIMEOUT" warp-cli --accept-tos --no-ansi "$@" >/dev/null 2>&1
 }}
 
+safe_warp_cli_mode() {{
+    safe_warp_cli mode "$1" || safe_warp_cli set-mode "$1"
+}}
+
+safe_warp_cli_proxy_port() {{
+    safe_warp_cli proxy port "$1" || safe_warp_cli set-proxy-port "$1"
+}}
+
+safe_warp_cli_registration_new() {{
+    safe_warp_cli registration new || safe_warp_cli register
+}}
+
+safe_warp_cli_registration_delete() {{
+    safe_warp_cli registration delete || safe_warp_cli delete
+}}
+
+prepare_warp_runtime() {{
+    if [ "$WARP_MODE" = "proxy" ]; then
+        safe_warp_cli_mode proxy || true
+        safe_warp_cli_proxy_port "$WARP_PROXY_PORT" || true
+    else
+        safe_warp_cli_mode warp || true
+    fi
+}}
+
 recover_retry() {{
     log "[recover] stage=retry"
     safe_warp_cli disconnect || true
@@ -165,7 +191,7 @@ recover_restart() {{
     systemctl reset-failed warp-svc >/dev/null 2>&1 || true
     systemctl restart warp-svc >/dev/null 2>&1 || true
     sleep 5
-    safe_warp_cli proxy port "$WARP_PROXY_PORT" || true
+    prepare_warp_runtime
     safe_warp_cli connect || true
     sleep 5
 }}
@@ -178,11 +204,11 @@ recover_reregister() {{
     systemctl restart warp-svc >/dev/null 2>&1 || true
     sleep 5
     safe_warp_cli disconnect || true
-    safe_warp_cli registration delete || true
+    safe_warp_cli_registration_delete || true
     sleep 2
-    timeout 20 warp-cli --accept-tos --no-ansi registration new >/dev/null 2>&1 || true
+    safe_warp_cli_registration_new || true
     sleep 2
-    safe_warp_cli proxy port "$WARP_PROXY_PORT" || true
+    prepare_warp_runtime
     safe_warp_cli connect || true
     sleep 6
 }}

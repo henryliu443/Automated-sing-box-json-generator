@@ -279,6 +279,29 @@ def warp_cli_cmd(args):
     return f"warp-cli --accept-tos --no-ansi {args}"
 
 
+def run_compatible_warp_cli(*args_variants):
+    last_output = ""
+    for args in args_variants:
+        cmd = warp_cli_cmd(args)
+        ui.command(cmd)
+        result = subprocess.run(
+            cmd,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        output = (result.stdout or "").strip()
+        if output:
+            print(output, flush=True)
+        if result.returncode == 0:
+            return output
+        last_output = output
+
+    detail = f"\n{last_output}" if last_output else ""
+    raise RuntimeError(f"warp-cli 命令执行失败，已尝试兼容语法: {args_variants}{detail}")
+
+
 def run_cmd_soft(cmd):
     subprocess.run(
         cmd,
@@ -303,30 +326,35 @@ def warp_registration_exists():
     return bool(out)
 
 
-def wait_for_warp_mode(timeout=20):
+def wait_for_warp_mode(timeout=20, preferred_mode=None):
     deadline = time.time() + timeout
     while time.time() < deadline:
-        if warp_proxy_ready():
+        status = {
+            "proxy": warp_proxy_ready(),
+            "tun": warp_tunnel_ready(),
+        }
+        if preferred_mode and status.get(preferred_mode):
+            return preferred_mode
+        if status["proxy"]:
             return "proxy"
-        if warp_tunnel_ready():
+        if status["tun"]:
             return "tun"
         time.sleep(1)
     return None
 
 
-def configure_warpsvc_proxy():
+def configure_warpsvc_tunnel():
     ensure_warp_package()
 
-    ui.step("初始化 Cloudflare WARP 本地代理模式")
+    ui.step("初始化 Cloudflare WARP 系统隧道模式")
     run_cmd(f"systemctl enable --now {WARP_SERVICE}")
     run_cmd_soft(warp_cli_cmd("disconnect"))
 
     if not warp_registration_exists():
-        run_cmd(warp_cli_cmd("registration new"))
+        run_compatible_warp_cli("registration new", "register")
 
     run_cmd(warp_cli_cmd("tunnel protocol set MASQUE"))
-    run_cmd(warp_cli_cmd("mode proxy"))
-    run_cmd(warp_cli_cmd(f"proxy port {WARP_PROXY_PORT}"))
+    run_compatible_warp_cli("mode warp", "set-mode warp")
     run_cmd(warp_cli_cmd("connect"))
 
 
@@ -351,9 +379,9 @@ def ensure_warp():
         return "tun"
 
     ui.step("安装 WARP")
-    configure_warpsvc_proxy()
+    configure_warpsvc_tunnel()
 
-    mode = wait_for_warp_mode()
+    mode = wait_for_warp_mode(preferred_mode="tun")
     if mode == "proxy":
         ui.success("WARP 安装完成，当前使用本地代理模式")
         return "proxy"
