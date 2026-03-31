@@ -63,6 +63,13 @@ def build_server_outbounds(warp_mode):
     raise ValueError(f"unsupported warp_mode: {warp_mode}")
 
 
+def build_domain_resolver(server_tag="dns-direct"):
+    return {
+        "server": server_tag,
+        "strategy": "prefer_ipv4",
+    }
+
+
 def build_server_config(creds, protocol_hosts=None, warp_mode="proxy"):
     if not protocol_hosts:
         raise ValueError("protocol_hosts is required")
@@ -288,7 +295,7 @@ def build_client_config(creds, protocol_hosts=None):
 
                 "server": hosts["reality"],
 
-                "domain_resolver": "dns-direct",
+                "domain_resolver": build_domain_resolver(),
 
                 "server_port": 23244,
 
@@ -315,7 +322,7 @@ def build_client_config(creds, protocol_hosts=None):
 
                 "server": hosts["tuic"],
 
-                "domain_resolver": "dns-direct",
+                "domain_resolver": build_domain_resolver(),
 
                 "server_port": 9443,
 
@@ -345,7 +352,7 @@ def build_client_config(creds, protocol_hosts=None):
 
                 "server": hosts["hy2"],
 
-                "domain_resolver": "dns-direct",
+                "domain_resolver": build_domain_resolver(),
 
                 "server_port": 7443,
 
