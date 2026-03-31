@@ -3,6 +3,7 @@ from route_profile import TUN_EXCLUDED_ROUTES, build_dns_config, build_route_con
 
 REALITY_DECOY_SERVER = "react.dev"
 ANYTLS_INBOUND_TAG = "anytls-in"
+TUIC_INBOUND_TAG = "tuic-in"
 HY2_INBOUND_TAG = "hy2-in"
 CLIENT_TUN_INBOUND_TAG = "tun-in"
 
@@ -10,12 +11,16 @@ REALITY_DECOY_PORT = 443
 
 HY2_MASQUERADE_URL = "https://www.cloudflare.com"
 
+TUIC_CERT_PATH = "/etc/sing-box-tuic/certs/tuic.crt"
+
+TUIC_KEY_PATH = "/etc/sing-box-tuic/certs/tuic.key"
+
 HY2_CERT_PATH = "/etc/hysteria/server.crt"
 
 HY2_KEY_PATH = "/etc/hysteria/server.key"
 
 # SNI segmented domain mapping:
-# jx1xfnke -> anytls(reality handshake), t7mmubf0 -> hy2
+# jx1xfnke -> reality, t7mmubf0 -> hy2, xts6e4iz -> tuic
 def build_protocol_hosts(domain_root):
     if not domain_root or not domain_root.strip():
         raise ValueError("domain_root is required")
@@ -27,6 +32,8 @@ def build_protocol_hosts(domain_root):
         "reality": f"jx1xfnke.{root}",
 
         "hy2": f"t7mmubf0.{root}",
+
+        "tuic": f"xts6e4iz.{root}",
 
     }
 
@@ -138,6 +145,36 @@ def build_server_config(creds, protocol_hosts=None, warp_mode="proxy"):
 
             {
 
+                "type": "tuic",
+
+                "tag": TUIC_INBOUND_TAG,
+
+                "listen": "::",
+
+                "listen_port": 9443,
+
+                "users": [{"uuid": creds["uuid"], "password": creds["pwd_tuic"]}],
+
+                "congestion_control": "bbr",
+
+                "zero_rtt_handshake": True,
+
+                "tls": {
+
+                    "enabled": True,
+
+                    "server_name": hosts["tuic"],
+
+                    "certificate_path": TUIC_CERT_PATH,
+
+                    "key_path": TUIC_KEY_PATH,
+
+                },
+
+            },
+
+            {
+
                 "type": "hysteria2",
 
                 "tag": HY2_INBOUND_TAG,
@@ -186,7 +223,7 @@ def build_server_config(creds, protocol_hosts=None, warp_mode="proxy"):
                     "timeout": "1s",
                 },
                 {
-                    "inbound": [ANYTLS_INBOUND_TAG, HY2_INBOUND_TAG],
+                    "inbound": [ANYTLS_INBOUND_TAG, TUIC_INBOUND_TAG, HY2_INBOUND_TAG],
                     "action": "route",
                     "outbound": "warp-out",
                 }
@@ -240,7 +277,7 @@ def build_client_config(creds, protocol_hosts=None):
 
                 "tag": "proxy-best",
 
-                "outbounds": ["hy2-out", "anytls-out"],
+                "outbounds": ["tuic-out", "hy2-out", "anytls-out"],
 
                 "url": "https://cp.cloudflare.com/generate_204",
 
@@ -274,6 +311,36 @@ def build_client_config(creds, protocol_hosts=None):
                 },
 
                 "password": creds["pwd_anytls"],
+
+            },
+
+            {
+
+                "type": "tuic",
+
+                "tag": "tuic-out",
+
+                "server": hosts["tuic"],
+
+                "domain_resolver": build_domain_resolver(),
+
+                "server_port": 9443,
+
+                "uuid": creds["uuid"],
+
+                "password": creds["pwd_tuic"],
+
+                "congestion_control": "bbr",
+
+                "udp_relay_mode": "quic",
+
+                "tls": {
+
+                    "enabled": True,
+
+                    "server_name": hosts["tuic"],
+
+                },
 
             },
 

@@ -99,7 +99,7 @@ def build_dns_config(hosts):
 
     rules = [
         {
-            "domain": [hosts["reality"], hosts["hy2"]],
+            "domain": [hosts["reality"], hosts["tuic"], hosts["hy2"]],
             "action": "route",
             "server": "dns-direct",
         }
