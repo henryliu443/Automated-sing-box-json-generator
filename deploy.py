@@ -13,7 +13,12 @@ from config import (
     build_server_config,
 )
 from credentials import generate_credentials
-from installer import ensure_dependencies, ensure_port_safety, print_port_snapshot
+from installer import (
+    deploy_singbox_auto_update,
+    ensure_dependencies,
+    ensure_port_safety,
+    print_port_snapshot,
+)
 from watchdog import deploy_watchdog
 
 DOMAIN_RE = re.compile(
@@ -123,6 +128,8 @@ def deploy():
     ui.section("守护任务")
     ui.step(f"部署 watchdog: {WATCHDOG_SCRIPT_PATH}")
     deploy_watchdog(WATCHDOG_SCRIPT_PATH, warp_mode=warp_mode)
+    ui.step("部署 sing-box 自动更新任务")
+    deploy_singbox_auto_update()
     restart_services_and_verify(warp_mode)
     print_success_result(client_config, protocol_hosts, warp_mode)
 
