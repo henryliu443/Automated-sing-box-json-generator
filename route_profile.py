@@ -80,7 +80,9 @@ IGNORED_RULES = [
     "IP-ASN,132203,DIRECT,no-resolve", "USER-AGENT,Line*,PROXY",
 ]
 
-ROUTE_FINAL = "proxy-best"
+# Keep unknown traffic on direct so a dead proxy pool does not take down
+# all TCP/UDP connectivity. Explicit proxy rules still use proxy-best.
+ROUTE_FINAL = "direct"
 USE_GEOIP_CN = True
 
 

@@ -6,6 +6,9 @@ ANYTLS_INBOUND_TAG = "anytls-in"
 TUIC_INBOUND_TAG = "tuic-in"
 HY2_INBOUND_TAG = "hy2-in"
 CLIENT_TUN_INBOUND_TAG = "tun-in"
+CLIENT_PROXY_BEST_TAG = "proxy-best"
+CLIENT_PROXY_AUTO_TAG = "proxy-auto"
+CLIENT_PROXY_OUTBOUND_TAGS = ["tuic-out", "hy2-out", "anytls-out"]
 
 REALITY_DECOY_PORT = 443
 
@@ -70,6 +73,73 @@ def build_domain_resolver(server_tag="dns-direct"):
     }
 
 
+def build_client_outbounds(creds, hosts):
+    return [
+        {
+            "type": "selector",
+            "tag": CLIENT_PROXY_BEST_TAG,
+            "outbounds": [CLIENT_PROXY_AUTO_TAG, *CLIENT_PROXY_OUTBOUND_TAGS, "direct"],
+            "default": CLIENT_PROXY_AUTO_TAG,
+            "interrupt_exist_connections": True,
+        },
+        {
+            "type": "urltest",
+            "tag": CLIENT_PROXY_AUTO_TAG,
+            "outbounds": CLIENT_PROXY_OUTBOUND_TAGS,
+            "url": "https://cp.cloudflare.com/generate_204",
+            "interval": "10m",
+            "tolerance": 50,
+        },
+        {
+            "type": "anytls",
+            "tag": "anytls-out",
+            "server": hosts["reality"],
+            "domain_resolver": build_domain_resolver(),
+            "server_port": 23244,
+            "tls": {
+                "enabled": True,
+                "server_name": REALITY_DECOY_SERVER,
+                "utls": {"enabled": True, "fingerprint": "chrome"},
+                "reality": {
+                    "enabled": True,
+                    "public_key": creds["public_key"],
+                    "short_id": "0123456789abcdef",
+                },
+            },
+            "password": creds["pwd_anytls"],
+        },
+        {
+            "type": "tuic",
+            "tag": "tuic-out",
+            "server": hosts["tuic"],
+            "domain_resolver": build_domain_resolver(),
+            "server_port": 9443,
+            "uuid": creds["uuid"],
+            "password": creds["pwd_tuic"],
+            "congestion_control": "bbr",
+            "udp_relay_mode": "quic",
+            "tls": {
+                "enabled": True,
+                "server_name": hosts["tuic"],
+            },
+        },
+        {
+            "type": "hysteria2",
+            "tag": "hy2-out",
+            "server": hosts["hy2"],
+            "domain_resolver": build_domain_resolver(),
+            "server_port": 7443,
+            "obfs": {"type": "salamander", "password": creds["pwd_obfs"]},
+            "password": creds["pwd_hy2"],
+            "tls": {
+                "enabled": True,
+                "server_name": hosts["hy2"],
+            },
+        },
+        {"type": "direct", "tag": "direct"},
+    ]
+
+
 def build_server_config(creds, protocol_hosts=None, warp_mode="proxy"):
     if not protocol_hosts:
         raise ValueError("protocol_hosts is required")
@@ -77,11 +147,7 @@ def build_server_config(creds, protocol_hosts=None, warp_mode="proxy"):
 
     return {
 
-        "log": {
-
-            "level": "debug"
-            
-            },
+        "log": {"disabled": True},
 
         "inbounds": [
 
@@ -247,7 +313,10 @@ def build_client_config(creds, protocol_hosts=None):
 
     return {
 
-        "log": {"disabled": True},
+        "log": {
+            "level": "debug",
+            "timestamp": True,
+        },
 
         "dns": build_dns_config(hosts),
 
@@ -273,110 +342,7 @@ def build_client_config(creds, protocol_hosts=None):
 
         ],
 
-        "outbounds": [
-
-            {
-
-                "type": "urltest",
-
-                "tag": "proxy-best",
-
-                "outbounds": ["tuic-out", "hy2-out", "anytls-out"],
-
-                "url": "https://cp.cloudflare.com/generate_204",
-
-                "interval": "10m",
-
-                "tolerance": 50,
-
-            },
-
-            {
-
-                "type": "anytls",
-
-                "tag": "anytls-out",
-
-                "server": hosts["reality"],
-
-                "domain_resolver": build_domain_resolver(),
-
-                "server_port": 23244,
-
-                "tls": {
-                    "enabled": True,
-                    "server_name": REALITY_DECOY_SERVER,
-                    "utls": {"enabled": True, "fingerprint": "chrome"},
-                    "reality": {
-                        "enabled": True,
-                        "public_key": creds["public_key"],
-                        "short_id": "0123456789abcdef",
-                    },
-                },
-
-                "password": creds["pwd_anytls"],
-
-            },
-
-            {
-
-                "type": "tuic",
-
-                "tag": "tuic-out",
-
-                "server": hosts["tuic"],
-
-                "domain_resolver": build_domain_resolver(),
-
-                "server_port": 9443,
-
-                "uuid": creds["uuid"],
-
-                "password": creds["pwd_tuic"],
-
-                "congestion_control": "bbr",
-
-                "udp_relay_mode": "quic",
-
-                "tls": {
-
-                    "enabled": True,
-
-                    "server_name": hosts["tuic"],
-
-                },
-
-            },
-
-            {
-
-                "type": "hysteria2",
-
-                "tag": "hy2-out",
-
-                "server": hosts["hy2"],
-
-                "domain_resolver": build_domain_resolver(),
-
-                "server_port": 7443,
-
-                "obfs": {"type": "salamander", "password": creds["pwd_obfs"]},
-
-                "password": creds["pwd_hy2"],
-
-                "tls": {
-
-                    "enabled": True,
-
-                    "server_name": hosts["hy2"],
-
-                },
-
-            },
-
-            {"type": "direct", "tag": "direct"},
-
-        ],
+        "outbounds": build_client_outbounds(creds, hosts),
 
         "route": build_route_config(sniff_inbound=CLIENT_TUN_INBOUND_TAG),
 
