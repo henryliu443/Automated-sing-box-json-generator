@@ -4,7 +4,7 @@ import subprocess
 
 import cli_ui as ui
 from config import HY2_CERT_PATH, HY2_KEY_PATH, TUIC_CERT_PATH, TUIC_KEY_PATH
-from installer import run_cmd
+from installer import SINGBOX_SERVICE, run_cmd
 
 ACME_SH_PATH = "/root/.acme.sh/acme.sh"
 ACME_INSTALL_URL = "https://get.acme.sh"
@@ -12,6 +12,7 @@ ACME_CA = "letsencrypt"
 CERT_VALIDITY_WINDOW = 30 * 24 * 3600
 CF_TOKEN_ENV = "CF_Token"
 CF_ZONE_ID_ENV = "CF_Zone_ID"
+ACME_RELOAD_CMD = f"systemctl try-restart {SINGBOX_SERVICE} >/dev/null 2>&1 || true"
 
 
 def _q(value):
@@ -130,7 +131,7 @@ def _issue_and_install_cert(acme_sh, host, cert_path, key_path, cf_token, cf_zon
         f"{_q(acme_sh)} --install-cert -d {_q(host)} --ecc "
         f"--fullchain-file {_q(cert_path)} "
         f"--key-file {_q(key_path)} "
-        "--reloadcmd 'systemctl restart sing-box'"
+        f"--reloadcmd {_q(ACME_RELOAD_CMD)}"
     )
     run_cmd(f"chmod 600 {_q(key_path)}")
 

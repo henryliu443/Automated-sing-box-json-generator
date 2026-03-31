@@ -9,6 +9,8 @@ import cli_ui as ui
 
 WARP_SERVICE = "warp-svc"
 LEGACY_WARP_SERVICES = ("warp-go",)
+SINGBOX_SERVICE = "sing-box"
+SINGBOX_SERVICE_UNIT_PATH = f"/etc/systemd/system/{SINGBOX_SERVICE}.service"
 WARP_PROXY_HOST = "127.0.0.1"
 WARP_PROXY_PORT = 40000
 WARP_PROXY_URL = f"socks5h://{WARP_PROXY_HOST}:{WARP_PROXY_PORT}"
@@ -36,6 +38,26 @@ SINGBOX_ARCH_MAP = {
     "armv6l": "armv6",
     "armv5l": "armv5",
 }
+
+SINGBOX_SYSTEMD_UNIT = """[Unit]
+Description=sing-box service
+Documentation=https://sing-box.sagernet.org/
+After=network-online.target nss-lookup.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/sing-box run -C /etc/sing-box
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5s
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=multi-user.target
+"""
+
+
 def run_cmd(cmd, timeout=1800):
     ui.command(cmd)
     proc = subprocess.Popen(
@@ -581,6 +603,23 @@ def install_singbox_pinned():
     run_cmd(f"install -m 755 {shlex.quote(binary_path)} /usr/bin/sing-box")
 
 
+def ensure_singbox_service():
+    current_content = None
+    if os.path.isfile(SINGBOX_SERVICE_UNIT_PATH):
+        with open(SINGBOX_SERVICE_UNIT_PATH, "r", encoding="utf-8") as f:
+            current_content = f.read()
+
+    if current_content != SINGBOX_SYSTEMD_UNIT:
+        ui.step(f"写入 sing-box systemd unit: {SINGBOX_SERVICE_UNIT_PATH}")
+        with open(SINGBOX_SERVICE_UNIT_PATH, "w", encoding="utf-8") as f:
+            f.write(SINGBOX_SYSTEMD_UNIT)
+        run_cmd("systemctl daemon-reload")
+    else:
+        ui.success("sing-box systemd unit 已存在")
+
+    run_cmd(f"systemctl enable {SINGBOX_SERVICE}")
+
+
 def ensure_warp():
     if warp_proxy_ready():
         ui.success("检测到 WARP 本地代理模式 (127.0.0.1:40000)")
@@ -618,6 +657,7 @@ def ensure_singbox():
     installed_version = get_singbox_version()
     if singbox_installed() and singbox_runnable() and installed_version == SINGBOX_VERSION:
         ui.success("sing-box 已存在")
+        ensure_singbox_service()
         return
 
     if singbox_installed() and installed_version and installed_version != SINGBOX_VERSION:
@@ -637,6 +677,7 @@ def ensure_singbox():
             f"sing-box 安装后版本异常或不可执行: {binary_path}\n"
             f"期望版本: {SINGBOX_VERSION}，当前版本: {installed_version or '(unknown)'}"
         )
+    ensure_singbox_service()
 
 
 def ensure_dependencies():
