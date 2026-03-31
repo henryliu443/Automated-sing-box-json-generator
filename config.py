@@ -77,7 +77,11 @@ def build_server_config(creds, protocol_hosts=None, warp_mode="proxy"):
 
     return {
 
-        "log": {"disabled": True},
+        "log": {
+
+            "level": "debug"
+            
+            },
 
         "inbounds": [
 
