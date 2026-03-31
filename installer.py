@@ -1,6 +1,7 @@
 import os
 import re
 import select
+import shlex
 import subprocess
 import time
 
@@ -21,6 +22,10 @@ SYSTEM_DNS_SERVERS = ("1.1.1.1", "1.0.0.1")
 WARP_CLI_TIMEOUT = 20
 WARP_CONNECT_TIMEOUT = 30
 WARP_SERVICE_READY_TIMEOUT = 15
+SINGBOX_SERVICE_NAME = "sing-box"
+SINGBOX_SERVICE_OVERRIDE_DIR = f"/etc/systemd/system/{SINGBOX_SERVICE_NAME}.service.d"
+SINGBOX_SERVICE_OVERRIDE_PATH = f"{SINGBOX_SERVICE_OVERRIDE_DIR}/override.conf"
+SINGBOX_DEFAULT_EXEC_ARGS = ("run", "-D", "/var/lib/sing-box", "-C", "/etc/sing-box")
 
 
 def run_cmd(cmd, timeout=1800):
@@ -476,14 +481,104 @@ def configure_warpsvc_tunnel():
 
 
 def singbox_installed():
+    return bool(resolve_singbox_path())
+
+
+def resolve_singbox_path():
     result = subprocess.run(
-        "which sing-box",
+        "command -v sing-box",
         shell=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
+    path = result.stdout.strip()
+    if result.returncode != 0 or not path:
+        return None
+    return path
+
+
+def singbox_runnable(binary_path=None):
+    path = binary_path or resolve_singbox_path()
+    if not path:
+        return False
+
+    try:
+        result = subprocess.run(
+            [path, "version"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    except OSError:
+        return False
+
     return result.returncode == 0
+
+
+def read_singbox_service_execstart():
+    result = subprocess.run(
+        ["systemctl", "cat", SINGBOX_SERVICE_NAME],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    if result.returncode != 0:
+        return None
+
+    execstart = None
+    for raw_line in result.stdout.splitlines():
+        line = raw_line.strip()
+        if not line.startswith("ExecStart="):
+            continue
+        value = line.split("=", 1)[1].strip()
+        if value:
+            execstart = value
+    return execstart
+
+
+def _render_execstart(binary_path, current_execstart=None):
+    if current_execstart:
+        try:
+            tokens = shlex.split(current_execstart)
+        except ValueError:
+            tokens = []
+        if tokens:
+            prefix = ""
+            if tokens[0].startswith("-"):
+                prefix = "-"
+                tokens[0] = tokens[0][1:]
+            tokens[0] = f"{prefix}{binary_path}"
+            return shlex.join(tokens)
+
+    return shlex.join([binary_path, *SINGBOX_DEFAULT_EXEC_ARGS])
+
+
+def ensure_singbox_service_execstart():
+    binary_path = resolve_singbox_path()
+    if not binary_path:
+        raise RuntimeError("未找到 sing-box 可执行文件，无法修正 systemd 服务路径")
+
+    current_execstart = read_singbox_service_execstart()
+    target_execstart = shlex.join([binary_path, *SINGBOX_DEFAULT_EXEC_ARGS])
+
+    if current_execstart:
+        try:
+            current_tokens = shlex.split(current_execstart)
+        except ValueError:
+            current_tokens = []
+        current_binary = current_tokens[0].lstrip("-") if current_tokens else ""
+        if current_binary == binary_path and os.path.isfile(current_binary):
+            return
+
+    os.makedirs(SINGBOX_SERVICE_OVERRIDE_DIR, exist_ok=True)
+    with open(SINGBOX_SERVICE_OVERRIDE_PATH, "w", encoding="utf-8") as f:
+        f.write("[Service]\n")
+        f.write("ExecStart=\n")
+        f.write(f"ExecStart={target_execstart}\n")
+
+    subprocess.run(["systemctl", "daemon-reload"], check=True)
+    ui.info(f"已修正 sing-box systemd 启动路径: {target_execstart}")
 
 
 def ensure_warp():
@@ -520,15 +615,24 @@ def ensure_warp():
 
 
 def ensure_singbox():
-    if singbox_installed():
+    if singbox_installed() and singbox_runnable():
         ui.success("sing-box 已存在")
+        ensure_singbox_service_execstart()
         return
+
+    if singbox_installed():
+        ui.warning("检测到 sing-box 二进制存在但不可执行，尝试重新安装")
 
     ui.step("安装 sing-box")
     run_cmd("curl -fsSL -o install.sh https://sing-box.app/install.sh")
     run_cmd("sh install.sh")
-    if not singbox_installed():
-        raise RuntimeError("sing-box 安装失败")
+    if not singbox_installed() or not singbox_runnable():
+        binary_path = resolve_singbox_path() or "(missing)"
+        raise RuntimeError(
+            f"sing-box 安装后仍不可执行: {binary_path}\n"
+            "请检查二进制架构、执行权限或系统依赖是否缺失"
+        )
+    ensure_singbox_service_execstart()
 
 
 def ensure_dependencies():
