@@ -83,7 +83,7 @@ def restart_services_and_verify(warp_mode):
     try:
         subprocess.run(["sing-box", "check", "-C", "/etc/sing-box"], check=True)
         subprocess.run(["systemctl", "restart", "sing-box"], check=True)
-        ensure_port_safety(warp_mode)
+        ensure_port_safety(warp_mode, require_runtime=True)
     except (subprocess.CalledProcessError, RuntimeError) as e:
         raise RuntimeError(f"重启或端口校验失败: {e}") from e
 
