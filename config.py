@@ -66,7 +66,7 @@ def build_server_config(creds, protocol_hosts=None, warp_mode="proxy"):
 
     return {
 
-        "log": {"level": "info", "timestamp": True},
+        "log": {"disabled": True},
 
         "inbounds": [
 
@@ -218,7 +218,7 @@ def build_client_config(creds, protocol_hosts=None):
 
     return {
 
-        "log": {"level": "info", "timestamp": True},
+        "log": {"disabled": True},
 
         "dns": build_dns_config(hosts),
 

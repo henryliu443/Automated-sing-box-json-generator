@@ -37,12 +37,10 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 umask 022
 
 LOCK_FILE="/var/run/warp_watchdog.lock"
-LOG_FILE="/var/log/warp_watchdog.log"
 FAIL_COUNT_FILE="/tmp/warp_fail_count"
 DISABLE_FLAG="/tmp/warp_disabled"
 STATUS_CACHE="/tmp/warp_status_cache.txt"
 WARP_HOOK="/usr/local/bin/warp-state-hook"
-MAX_LOG_SIZE=1048576
 
 WARP_TRACE_URL="https://www.cloudflare.com/cdn-cgi/trace"
 WARP_PROXY_HOST="127.0.0.1"
@@ -63,24 +61,12 @@ DIRECT_TARGETS=(
   "1.1.1.1:443"
 )
 
-mkdir -p "$(dirname "$LOCK_FILE")" "$(dirname "$LOG_FILE")"
-touch "$LOG_FILE"
+mkdir -p "$(dirname "$LOCK_FILE")"
 exec 9>"$LOCK_FILE"
 flock -n 9 || exit 0
 
-trim_log() {{
-    [ -f "$LOG_FILE" ] || return 0
-
-    local size
-    size=$(wc -c < "$LOG_FILE" 2>/dev/null || echo 0)
-    [ "$size" -lt "$MAX_LOG_SIZE" ] && return 0
-
-    : > "$LOG_FILE"
-}}
-
 log() {{
-    trim_log
-    printf '%s %s\\n' "$(date '+%F %T')" "$*" >> "$LOG_FILE"
+    :
 }}
 
 tcp_connect() {{
