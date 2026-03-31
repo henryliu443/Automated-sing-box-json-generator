@@ -80,8 +80,6 @@ def build_server_config(creds, protocol_hosts=None, warp_mode="proxy"):
 
                 "listen_port": 23244,
 
-                "sniff": True,
-
                 "users": [{"name": "user", "password": creds["pwd_anytls"]}],
 
                 "padding_scheme": [
@@ -202,7 +200,13 @@ def build_server_config(creds, protocol_hosts=None, warp_mode="proxy"):
 
         "route": {
 
-            "rules": [{"inbound": ["anytls-in", "tuic-in", "hy2-in"], "outbound": "warp-out"}],
+            "rules": [
+                {
+                    "inbound": ["anytls-in", "tuic-in", "hy2-in"],
+                    "action": "route",
+                    "outbound": "warp-out",
+                }
+            ],
 
             "final": "warp-out",
 
@@ -239,10 +243,6 @@ def build_client_config(creds, protocol_hosts=None):
                 "route_exclude_address": TUN_EXCLUDED_ROUTES,
 
                 "stack": "system",
-
-                "sniff": True,
-
-                "sniff_override_destination": True,
 
             }
 

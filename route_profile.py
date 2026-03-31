@@ -144,6 +144,7 @@ def build_dns_config(hosts):
 
 def build_route_config():
     rules = [
+        {"action": "sniff"},
         {"protocol": "dns", "action": "hijack-dns"},
         {"ip_is_private": True, "action": "route", "outbound": "direct"},
     ]

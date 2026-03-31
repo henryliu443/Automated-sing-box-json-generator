@@ -79,8 +79,9 @@ def write_server_config(server_config: dict[str, Any]):
 
 def restart_services_and_verify(warp_mode):
     ui.section("服务重载")
-    ui.step("重启 sing-box 并执行端口校验")
+    ui.step("先校验 sing-box 配置，再重启服务并执行端口校验")
     try:
+        subprocess.run(["sing-box", "check", "-C", "/etc/sing-box"], check=True)
         subprocess.run(["systemctl", "restart", "sing-box"], check=True)
         ensure_port_safety(warp_mode)
     except (subprocess.CalledProcessError, RuntimeError) as e:
