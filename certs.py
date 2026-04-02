@@ -114,28 +114,35 @@ def _resolve_acme_sh():
 
 
 def _issue_cert(acme_sh, host, cf_token, cf_zone_id):
-    """Run acme.sh --issue. Exit code 2 means cert already valid (skip)."""
+    """Run acme.sh --issue with real-time output.
+
+    Exit code 2 means cert already valid (skip) — not an error.
+    """
     cmd = (
         f"{CF_TOKEN_ENV}={_q(cf_token)} {CF_ZONE_ID_ENV}={_q(cf_zone_id)} "
         f"{_q(acme_sh)} --issue --dns dns_cf -d {_q(host)} "
         f"--keylength ec-256 --server {ACME_CA}"
     )
     ui.command(cmd)
-    result = subprocess.run(
+    proc = subprocess.Popen(
         cmd, shell=True,
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        bufsize=1,
     )
-    output = (result.stdout or "").strip()
-    if output:
-        print(output, flush=True)
+    lines = []
+    assert proc.stdout is not None
+    for line in proc.stdout:
+        print(line, end="", flush=True)
+        lines.append(line)
+    proc.wait()
 
-    if result.returncode == 0:
+    output = "".join(lines)
+    if proc.returncode == 0:
         return
-    # acme.sh exit 2 = cert still valid, renewal skipped — not an error
-    if result.returncode == 2 and "Skipping" in output:
+    if proc.returncode == 2 and "Skipping" in output:
         ui.info(f"证书仍在有效期内，跳过签发: {host}")
         return
-    raise RuntimeError(f"acme.sh --issue 失败 (exit {result.returncode}): {host}")
+    raise RuntimeError(f"acme.sh --issue 失败 (exit {proc.returncode}): {host}")
 
 
 def _issue_and_install_cert(acme_sh, host, cert_path, key_path, cf_token, cf_zone_id):
