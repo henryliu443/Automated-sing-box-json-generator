@@ -34,7 +34,7 @@ DIRECT_SUFFIX = [
     "luojilab.com", "madsrevolution.net", "maoyan.com", "maoyun.tv", "meipai.com", "meitu.com", "meituan.com", "meituan.net", "meitudata.com", "meitustat.com", "meixincdn.com", "mgtv.com", "mi-img.com", "microsoft.com", "miui.com", "miwifi.com",
     "mobike.com", "moke.com", "morethan.tv", "mpg.de", "msecnd.net", "mubu.com", "mxhichina.com", "myanonamouse.net", "myapp.com", "myilibrary.com", "myqcloud.com", "myzaker.com", "nanyangpt.com", "nature.com", "ncore.cc", "netease.com",
     "netspeedtestmaster.com", "nim-lang-cn.org", "nvidia.com", "oecd-ilibrary.org", "office365.com", "open.cd", "oracle.com", "osapublishing.org", "oup.com", "ourbits.club", "ourdvs.com", "outlook.com", "ovid.com", "oxfordartonline.com", "oxfordbibliographies.com", "oxfordmusiconline.com",
-    "passthepopcorn.me", "paypal.com", "paypalobjects.com", "pnas.org", "privatehd.to", "proquest.com", "pstatp.com", "pterclub.com", "qdaily.com", "qhimg.com", "qhres.com", "qidian.com", "qq.com", "wechat.com", "dns.pub", "doh.pub",
+    "passthepopcorn.me", "paypal.com", "paypalobjects.com", "pnas.org", "privatehd.to", "proquest.com", "pstatp.com", "pterclub.com", "qdaily.com", "qhimg.com", "qhres.com", "qidian.com", "qq.com", "dns.pub", "doh.pub",
     "qyer.com", "qyerstatic.com", "raychase.net", "redacted.ch", "ronghub.com", "rsc.org", "ruguoapp.com", "s-microsoft.com", "s-reader.com", "sagepub.com", "sankuai.com", "sciencedirect.com", "scomper.me", "scopus.com", "seafile.com", "servicewechat.com",
     "siam.org", "sina.com", "sm.ms", "smzdm.com", "snapdrop.net", "snssdk.com", "snwx.com", "sogo.com", "sogou.com", "sogoucdn.com", "sohu-inc.com", "sohu.com", "sohucs.com", "soku.com", "spiedigitallibrary.org", "springer.com",
     "springerlink.com", "springsunday.net", "sspai.com", "staticdn.net", "steam-chat.com", "steamcdn-a.akamaihd.net", "steamcontent.com", "steamgames.com", "steampowered.com", "steamstat.us", "steamstatic.com", "steamusercontent.com", "takungpao.com", "tandfonline.com", "tencent-cloud.net", "tencent.com",
@@ -196,6 +196,7 @@ def build_route_config(sniff_inbound=None):
                 "tag": "geoip-cn",
                 "format": "binary",
                 "url": GEOIP_CN_RULESET_URL,
+                "download_detour": "direct",
             }
         ]
         route["rules"].append(
