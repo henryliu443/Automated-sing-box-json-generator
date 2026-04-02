@@ -77,6 +77,30 @@ python3 main.py config --protocols hy2
 
 仅启用 AnyTLS 时无需签发证书，部署更快。
 
+### 路由模式（route-mode）
+
+客户端配置内置三层出站架构，通过顶层 `route-mode` selector 在客户端 UI 一键切换：
+
+| 模式 | 未匹配流量 | DNS（未匹配域名） | 推荐场景 |
+|------|-----------|-------------------|---------|
+| **route**（默认） | 直连 | 1.1.1.1 DoH via 代理 | 日常使用，规则分流 |
+| **global** | 走代理节点 | 1.1.1.1 DoH via 代理 | 需要全局翻墙、测试连通性 |
+| **direct** | 直连 | 1.1.1.1 DoH via 代理 | 临时关闭代理、排查网络问题 |
+
+三层结构：
+
+```
+route-mode (selector)          ← route.final 指向这里
+├── route   (direct)           ← 默认，规则分流
+├── global  (selector)         ← 全局代理，可手动选节点或 proxy-auto
+│   ├── proxy-auto (urltest)   ← 自动测速选最优
+│   ├── anytls-out / tuic-out / hy2-out
+│   └── route                  ← 兜底回退到直连
+└── direct  (direct)           ← 全部直连
+```
+
+> **注意**：显式匹配的路由规则（如 PROXY_SUFFIX / DIRECT_SUFFIX）在所有模式下始终生效，`route-mode` 仅控制**未被规则命中**的流量去向。
+
 ### DNS 记录自动管理
 
 部署时自动通过 Cloudflare API：

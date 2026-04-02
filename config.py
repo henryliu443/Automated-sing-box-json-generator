@@ -15,6 +15,7 @@ CLIENT_PROXY_BEST_TAG = "global"
 CLIENT_PROXY_AUTO_TAG = "proxy-auto"
 CLIENT_ROUTE_MODE_TAG = "route-mode"
 CLIENT_ROUTE_TAG = "route"
+URLTEST_URL = "https://cp.cloudflare.com/generate_204"
 
 SERVER_DNS_SERVERS = ("1.1.1.1", "1.0.0.1")
 SERVER_DNS_TAG = "dns-server"
@@ -274,7 +275,7 @@ def build_client_outbounds(creds, hosts, enabled_protocols=None):
         {
             "type": "selector",
             "tag": CLIENT_PROXY_BEST_TAG,
-            "outbounds": [CLIENT_PROXY_AUTO_TAG, *outbound_tags],
+            "outbounds": [CLIENT_PROXY_AUTO_TAG, *outbound_tags, CLIENT_ROUTE_TAG],
             "default": CLIENT_PROXY_AUTO_TAG,
             "interrupt_exist_connections": True,
         },
@@ -282,7 +283,7 @@ def build_client_outbounds(creds, hosts, enabled_protocols=None):
             "type": "urltest",
             "tag": CLIENT_PROXY_AUTO_TAG,
             "outbounds": outbound_tags,
-            "url": "https://cp.cloudflare.com/generate_204",
+            "url": URLTEST_URL,
             "interval": "10m",
             "tolerance": 50,
         },
