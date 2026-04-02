@@ -2,43 +2,72 @@ from route_profile import TUN_EXCLUDED_ROUTES, build_dns_config, build_route_con
 
 
 REALITY_DECOY_SERVER = "react.dev"
-ANYTLS_INBOUND_TAG = "anytls-in"
-TUIC_INBOUND_TAG = "tuic-in"
-HY2_INBOUND_TAG = "hy2-in"
-CLIENT_TUN_INBOUND_TAG = "tun-in"
-CLIENT_PROXY_BEST_TAG = "proxy-best"
-CLIENT_PROXY_AUTO_TAG = "proxy-auto"
-CLIENT_PROXY_OUTBOUND_TAGS = ["tuic-out", "hy2-out", "anytls-out"]
-
 REALITY_DECOY_PORT = 443
-
 HY2_MASQUERADE_URL = "https://www.cloudflare.com"
 
 TUIC_CERT_PATH = "/etc/sing-box-tuic/certs/tuic.crt"
-
 TUIC_KEY_PATH = "/etc/sing-box-tuic/certs/tuic.key"
-
 HY2_CERT_PATH = "/etc/hysteria/server.crt"
-
 HY2_KEY_PATH = "/etc/hysteria/server.key"
 
-# SNI segmented domain mapping:
-# jx1xfnke -> reality, t7mmubf0 -> hy2, xts6e4iz -> tuic
-def build_protocol_hosts(domain_root):
+CLIENT_TUN_INBOUND_TAG = "tun-in"
+CLIENT_PROXY_BEST_TAG = "proxy-best"
+CLIENT_PROXY_AUTO_TAG = "proxy-auto"
+
+SERVER_DNS_SERVERS = ("1.1.1.1", "1.0.0.1")
+SERVER_DNS_TAG = "dns-server"
+
+PROTOCOL_DEFS = {
+    "anytls": {
+        "label": "AnyTLS (Reality)",
+        "server_port": 23244,
+        "transport": "tcp",
+        "needs_tls_cert": False,
+        "inbound_tag": "anytls-in",
+        "outbound_tag": "anytls-out",
+        "host_key": "reality",
+    },
+    "tuic": {
+        "label": "TUIC",
+        "server_port": 9443,
+        "transport": "udp",
+        "needs_tls_cert": True,
+        "cert_path": TUIC_CERT_PATH,
+        "key_path": TUIC_KEY_PATH,
+        "inbound_tag": "tuic-in",
+        "outbound_tag": "tuic-out",
+        "host_key": "tuic",
+    },
+    "hy2": {
+        "label": "Hysteria2",
+        "server_port": 7443,
+        "transport": "udp",
+        "needs_tls_cert": True,
+        "cert_path": HY2_CERT_PATH,
+        "key_path": HY2_KEY_PATH,
+        "inbound_tag": "hy2-in",
+        "outbound_tag": "hy2-out",
+        "host_key": "hy2",
+    },
+}
+
+ALL_PROTOCOLS = list(PROTOCOL_DEFS)
+
+
+def build_protocol_hosts(domain_root, prefixes):
+    """Build ``{host_key: fqdn}`` from *domain_root* and random *prefixes*.
+
+    *prefixes* must be ``{"reality": "<hex>", "hy2": "<hex>", "tuic": "<hex>"}``.
+    Prefixes are generated per-deployment and stored in state — never
+    hard-coded in the public repository.
+    """
     if not domain_root or not domain_root.strip():
         raise ValueError("domain_root is required")
+    if not prefixes:
+        raise ValueError("prefixes is required (random subdomain prefixes)")
 
     root = domain_root.strip().lower().rstrip(".")
-
-    return {
-
-        "reality": f"jx1xfnke.{root}",
-
-        "hy2": f"t7mmubf0.{root}",
-
-        "tuic": f"xts6e4iz.{root}",
-
-    }
+    return {key: f"{prefix}.{root}" for key, prefix in prefixes.items()}
 
 
 def build_server_outbounds(warp_mode):
@@ -73,86 +102,221 @@ def build_domain_resolver(server_tag="dns-direct"):
     }
 
 
-def build_client_outbounds(creds, hosts):
-    return [
+# ---------------------------------------------------------------------------
+# Server inbound builders (one per protocol)
+# ---------------------------------------------------------------------------
+
+def _build_anytls_server_inbound(creds, hosts):
+    return {
+        "type": "anytls",
+        "tag": PROTOCOL_DEFS["anytls"]["inbound_tag"],
+        "listen": "::",
+        "listen_port": PROTOCOL_DEFS["anytls"]["server_port"],
+        "users": [{"name": "user", "password": creds["pwd_anytls"]}],
+        "padding_scheme": [
+            "stop=8",
+            "0=30-30",
+            "1=100-400",
+            "2=400-500,c,500-1000,c,500-1000,c,500-1000,c,500-1000",
+            "3=9-9,500-1000",
+            "4=500-1000",
+            "5=500-1000",
+            "6=500-1000",
+            "7=500-1000",
+        ],
+        "tls": {
+            "enabled": True,
+            "server_name": REALITY_DECOY_SERVER,
+            "reality": {
+                "enabled": True,
+                "handshake": {
+                    "server": REALITY_DECOY_SERVER,
+                    "server_port": REALITY_DECOY_PORT,
+                },
+                "private_key": creds["private_key"],
+                "short_id": creds["short_id"],
+            },
+        },
+    }
+
+
+def _build_tuic_server_inbound(creds, hosts):
+    pdef = PROTOCOL_DEFS["tuic"]
+    return {
+        "type": "tuic",
+        "tag": pdef["inbound_tag"],
+        "listen": "::",
+        "listen_port": pdef["server_port"],
+        "users": [{"uuid": creds["uuid"], "password": creds["pwd_tuic"]}],
+        "congestion_control": "bbr",
+        "zero_rtt_handshake": True,
+        "tls": {
+            "enabled": True,
+            "server_name": hosts["tuic"],
+            "certificate_path": pdef["cert_path"],
+            "key_path": pdef["key_path"],
+        },
+    }
+
+
+def _build_hy2_server_inbound(creds, hosts):
+    pdef = PROTOCOL_DEFS["hy2"]
+    return {
+        "type": "hysteria2",
+        "tag": pdef["inbound_tag"],
+        "listen": "::",
+        "listen_port": pdef["server_port"],
+        "users": [{"password": creds["pwd_hy2"]}],
+        "ignore_client_bandwidth": True,
+        "obfs": {"type": "salamander", "password": creds["pwd_obfs"]},
+        "masquerade": HY2_MASQUERADE_URL,
+        "tls": {
+            "enabled": True,
+            "server_name": hosts["hy2"],
+            "certificate_path": pdef["cert_path"],
+            "key_path": pdef["key_path"],
+        },
+    }
+
+
+_SERVER_INBOUND_BUILDERS = {
+    "anytls": _build_anytls_server_inbound,
+    "tuic": _build_tuic_server_inbound,
+    "hy2": _build_hy2_server_inbound,
+}
+
+# ---------------------------------------------------------------------------
+# Client outbound builders (one per protocol)
+# ---------------------------------------------------------------------------
+
+def _build_anytls_client_outbound(creds, hosts):
+    return {
+        "type": "anytls",
+        "tag": PROTOCOL_DEFS["anytls"]["outbound_tag"],
+        "server": hosts["reality"],
+        "domain_resolver": build_domain_resolver(),
+        "server_port": PROTOCOL_DEFS["anytls"]["server_port"],
+        "tls": {
+            "enabled": True,
+            "server_name": REALITY_DECOY_SERVER,
+            "utls": {"enabled": True, "fingerprint": "chrome"},
+            "reality": {
+                "enabled": True,
+                "public_key": creds["public_key"],
+                "short_id": creds["short_id"],
+            },
+        },
+        "password": creds["pwd_anytls"],
+    }
+
+
+def _build_tuic_client_outbound(creds, hosts):
+    return {
+        "type": "tuic",
+        "tag": PROTOCOL_DEFS["tuic"]["outbound_tag"],
+        "server": hosts["tuic"],
+        "domain_resolver": build_domain_resolver(),
+        "server_port": PROTOCOL_DEFS["tuic"]["server_port"],
+        "uuid": creds["uuid"],
+        "password": creds["pwd_tuic"],
+        "congestion_control": "bbr",
+        "udp_relay_mode": "quic",
+        "tls": {
+            "enabled": True,
+            "server_name": hosts["tuic"],
+        },
+    }
+
+
+def _build_hy2_client_outbound(creds, hosts):
+    return {
+        "type": "hysteria2",
+        "tag": PROTOCOL_DEFS["hy2"]["outbound_tag"],
+        "server": hosts["hy2"],
+        "domain_resolver": build_domain_resolver(),
+        "server_port": PROTOCOL_DEFS["hy2"]["server_port"],
+        "obfs": {"type": "salamander", "password": creds["pwd_obfs"]},
+        "password": creds["pwd_hy2"],
+        "tls": {
+            "enabled": True,
+            "server_name": hosts["hy2"],
+        },
+    }
+
+
+_CLIENT_OUTBOUND_BUILDERS = {
+    "anytls": _build_anytls_client_outbound,
+    "tuic": _build_tuic_client_outbound,
+    "hy2": _build_hy2_client_outbound,
+}
+
+
+# ---------------------------------------------------------------------------
+# Composite builders
+# ---------------------------------------------------------------------------
+
+def build_client_outbounds(creds, hosts, enabled_protocols=None):
+    if enabled_protocols is None:
+        enabled_protocols = ALL_PROTOCOLS
+
+    outbound_tags = [PROTOCOL_DEFS[p]["outbound_tag"] for p in enabled_protocols]
+
+    result = [
         {
             "type": "selector",
             "tag": CLIENT_PROXY_BEST_TAG,
-            "outbounds": [CLIENT_PROXY_AUTO_TAG, *CLIENT_PROXY_OUTBOUND_TAGS, "direct"],
+            "outbounds": [CLIENT_PROXY_AUTO_TAG, *outbound_tags, "direct"],
             "default": CLIENT_PROXY_AUTO_TAG,
             "interrupt_exist_connections": True,
         },
         {
             "type": "urltest",
             "tag": CLIENT_PROXY_AUTO_TAG,
-            "outbounds": CLIENT_PROXY_OUTBOUND_TAGS,
+            "outbounds": outbound_tags,
             "url": "https://cp.cloudflare.com/generate_204",
             "interval": "10m",
             "tolerance": 50,
         },
-        {
-            "type": "anytls",
-            "tag": "anytls-out",
-            "server": hosts["reality"],
-            "domain_resolver": build_domain_resolver(),
-            "server_port": 23244,
-            "tls": {
-                "enabled": True,
-                "server_name": REALITY_DECOY_SERVER,
-                "utls": {"enabled": True, "fingerprint": "chrome"},
-                "reality": {
-                    "enabled": True,
-                    "public_key": creds["public_key"],
-                    "short_id": "0123456789abcdef",
-                },
-            },
-            "password": creds["pwd_anytls"],
-        },
-        {
-            "type": "tuic",
-            "tag": "tuic-out",
-            "server": hosts["tuic"],
-            "domain_resolver": build_domain_resolver(),
-            "server_port": 9443,
-            "uuid": creds["uuid"],
-            "password": creds["pwd_tuic"],
-            "congestion_control": "bbr",
-            "udp_relay_mode": "quic",
-            "tls": {
-                "enabled": True,
-                "server_name": hosts["tuic"],
-            },
-        },
-        {
-            "type": "hysteria2",
-            "tag": "hy2-out",
-            "server": hosts["hy2"],
-            "domain_resolver": build_domain_resolver(),
-            "server_port": 7443,
-            "obfs": {"type": "salamander", "password": creds["pwd_obfs"]},
-            "password": creds["pwd_hy2"],
-            "tls": {
-                "enabled": True,
-                "server_name": hosts["hy2"],
-            },
-        },
-        {"type": "direct", "tag": "direct"},
     ]
 
+    for proto in enabled_protocols:
+        result.append(_CLIENT_OUTBOUND_BUILDERS[proto](creds, hosts))
 
-SERVER_DNS_SERVERS = ("1.1.1.1", "1.0.0.1")
-SERVER_DNS_TAG = "dns-server"
+    result.append({"type": "direct", "tag": "direct"})
+    return result
 
 
-def build_server_config(creds, protocol_hosts=None, warp_mode="proxy"):
+def build_server_config(creds, protocol_hosts=None, warp_mode="proxy", enabled_protocols=None):
     if not protocol_hosts:
         raise ValueError("protocol_hosts is required")
+    if enabled_protocols is None:
+        enabled_protocols = ALL_PROTOCOLS
+
     hosts = protocol_hosts
+    inbounds = [_SERVER_INBOUND_BUILDERS[p](creds, hosts) for p in enabled_protocols]
+    inbound_tags = [PROTOCOL_DEFS[p]["inbound_tag"] for p in enabled_protocols]
+
+    rules = []
+    if "anytls" in enabled_protocols:
+        rules.append({
+            "inbound": PROTOCOL_DEFS["anytls"]["inbound_tag"],
+            "action": "resolve",
+            "server": SERVER_DNS_TAG,
+            "strategy": "prefer_ipv4",
+        })
+        rules.append({
+            "inbound": PROTOCOL_DEFS["anytls"]["inbound_tag"],
+            "action": "sniff",
+            "timeout": "1s",
+        })
+    rules.append({
+        "inbound": inbound_tags,
+        "action": "route",
+        "outbound": "warp-out",
+    })
 
     return {
-
         "log": {"disabled": True},
-
         "dns": {
             "servers": [
                 {
@@ -162,205 +326,51 @@ def build_server_config(creds, protocol_hosts=None, warp_mode="proxy"):
                 },
             ],
         },
-
-        "inbounds": [
-
-            {
-
-                "type": "anytls",
-
-                "tag": ANYTLS_INBOUND_TAG,
-
-                "listen": "::",
-
-                "listen_port": 23244,
-
-                "users": [{"name": "user", "password": creds["pwd_anytls"]}],
-
-                "padding_scheme": [
-
-                    "stop=8",
-
-                    "0=30-30",
-
-                    "1=100-400",
-
-                    "2=400-500,c,500-1000,c,500-1000,c,500-1000,c,500-1000",
-
-                    "3=9-9,500-1000",
-
-                    "4=500-1000",
-
-                    "5=500-1000",
-
-                    "6=500-1000",
-
-                    "7=500-1000",
-
-                ],
-
-                "tls": {
-
-                    "enabled": True,
-
-                    "server_name": REALITY_DECOY_SERVER,
-
-                    "reality": {
-
-                        "enabled": True,
-
-                        "handshake": {
-
-                            "server": REALITY_DECOY_SERVER,
-
-                            "server_port": REALITY_DECOY_PORT,
-
-                        },
-
-                        "private_key": creds["private_key"],
-
-                        "short_id": "0123456789abcdef",
-
-                    },
-
-                },
-
-            },
-
-            {
-
-                "type": "tuic",
-
-                "tag": TUIC_INBOUND_TAG,
-
-                "listen": "::",
-
-                "listen_port": 9443,
-
-                "users": [{"uuid": creds["uuid"], "password": creds["pwd_tuic"]}],
-
-                "congestion_control": "bbr",
-
-                "zero_rtt_handshake": True,
-
-                "tls": {
-
-                    "enabled": True,
-
-                    "server_name": hosts["tuic"],
-
-                    "certificate_path": TUIC_CERT_PATH,
-
-                    "key_path": TUIC_KEY_PATH,
-
-                },
-
-            },
-
-            {
-
-                "type": "hysteria2",
-
-                "tag": HY2_INBOUND_TAG,
-
-                "listen": "::",
-
-                "listen_port": 7443,
-
-                "users": [{"password": creds["pwd_hy2"]}],
-
-                "ignore_client_bandwidth": True,
-
-                "obfs": {"type": "salamander", "password": creds["pwd_obfs"]},
-
-                "masquerade": HY2_MASQUERADE_URL,
-
-                "tls": {
-
-                    "enabled": True,
-
-                    "server_name": hosts["hy2"],
-
-                    "certificate_path": HY2_CERT_PATH,
-
-                    "key_path": HY2_KEY_PATH,
-
-                },
-
-            },
-
-        ],
-
+        "inbounds": inbounds,
         "outbounds": build_server_outbounds(warp_mode),
-
         "route": {
-
-            "rules": [
-                {
-                    "inbound": ANYTLS_INBOUND_TAG,
-                    "action": "resolve",
-                    "server": SERVER_DNS_TAG,
-                    "strategy": "prefer_ipv4",
-                },
-                {
-                    "inbound": ANYTLS_INBOUND_TAG,
-                    "action": "sniff",
-                    "timeout": "1s",
-                },
-                {
-                    "inbound": [ANYTLS_INBOUND_TAG, TUIC_INBOUND_TAG, HY2_INBOUND_TAG],
-                    "action": "route",
-                    "outbound": "warp-out",
-                }
-            ],
-
+            "rules": rules,
             "final": "warp-out",
-
             "default_domain_resolver": SERVER_DNS_TAG,
-
         },
-
     }
 
 
-def build_client_config(creds, protocol_hosts=None):
+def build_client_config(creds, protocol_hosts=None, enabled_protocols=None):
     if not protocol_hosts:
         raise ValueError("protocol_hosts is required")
+    if enabled_protocols is None:
+        enabled_protocols = ALL_PROTOCOLS
+
     hosts = protocol_hosts
 
     return {
-
         "log": {
             "level": "debug",
             "timestamp": True,
         },
-
         "dns": build_dns_config(hosts),
-
         "inbounds": [
-
             {
-
                 "type": "tun",
-
                 "tag": CLIENT_TUN_INBOUND_TAG,
-
                 "address": "172.19.0.1/30",
-
                 "auto_route": True,
-
                 "strict_route": True,
-
                 "route_exclude_address": TUN_EXCLUDED_ROUTES,
-
                 "stack": "system",
-
             }
-
         ],
-
-        "outbounds": build_client_outbounds(creds, hosts),
-
+        "outbounds": build_client_outbounds(creds, hosts, enabled_protocols),
         "route": build_route_config(sniff_inbound=CLIENT_TUN_INBOUND_TAG),
-
     }
+
+
+def protocol_ports(enabled_protocols=None):
+    """Return list of (port, transport) tuples for the given protocols."""
+    if enabled_protocols is None:
+        enabled_protocols = ALL_PROTOCOLS
+    return [
+        (PROTOCOL_DEFS[p]["server_port"], PROTOCOL_DEFS[p]["transport"])
+        for p in enabled_protocols
+    ]

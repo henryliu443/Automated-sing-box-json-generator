@@ -183,3 +183,30 @@ def json_block(title, payload):
     divider(title)
     print(json.dumps(payload, indent=2, ensure_ascii=False))
     divider()
+
+
+def select_protocols(available):
+    """Interactive protocol selection.
+
+    *available* is a list of ``(name, label)`` tuples.
+    Returns a list of selected protocol names (default: all).
+    """
+    print()
+    info("可用协议:")
+    for i, (name, label) in enumerate(available, 1):
+        print(f"  {i}. [{name}] {label}")
+    print()
+    raw = prompt("输入要启用的协议编号 (逗号分隔, 回车=全选)")
+    if not raw.strip():
+        return [name for name, _ in available]
+
+    selected = []
+    for part in raw.split(","):
+        part = part.strip()
+        if part.isdigit():
+            idx = int(part) - 1
+            if 0 <= idx < len(available) and available[idx][0] not in selected:
+                selected.append(available[idx][0])
+    if not selected:
+        return [name for name, _ in available]
+    return selected

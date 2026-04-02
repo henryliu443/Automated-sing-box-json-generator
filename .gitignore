@@ -1,3 +1,6 @@
 __pycache__/
 *.pyc
 *.pyo
+
+# Deployment state contains private keys and passwords — never commit.
+deploy-state.json
