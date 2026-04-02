@@ -47,6 +47,7 @@ REQUIRED_FILES = [
     "state.py",
     "export.py",
     "cloudflare_dns.py",
+    "rules.json",
 ]
 
 
