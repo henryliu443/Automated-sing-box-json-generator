@@ -113,40 +113,6 @@ def _resolve_acme_sh():
     raise RuntimeError("acme.sh 安装失败")
 
 
-def _acme_issue_skipped_not_due(output: str) -> bool:
-    """acme.sh 在证书未到期时会跳过 --issue 并以非零退出；此时应继续 --install-cert。"""
-    text = (output or "").lower()
-    if "domains not changed" in text and "skipping" in text:
-        return True
-    if "next renewal time" in text and "skipping" in text:
-        return True
-    return False
-
-
-def _run_acme_issue(acme_sh, host, cf_token, cf_zone_id) -> None:
-    cmd = (
-        f"{CF_TOKEN_ENV}={_q(cf_token)} {CF_ZONE_ID_ENV}={_q(cf_zone_id)} "
-        f"{_q(acme_sh)} --issue --dns dns_cf -d {_q(host)} --keylength ec-256 --server {ACME_CA}"
-    )
-    ui.command(cmd)
-    result = subprocess.run(
-        cmd,
-        shell=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
-    out = (result.stdout or "").strip()
-    if out:
-        print(out, flush=True)
-    if result.returncode == 0:
-        return
-    if _acme_issue_skipped_not_due(out):
-        ui.info("acme.sh 已跳过签发（未到期或域名未变），继续安装证书到目标路径")
-        return
-    raise RuntimeError(f"acme.sh --issue 失败 (exit {result.returncode}):\n{out}")
-
-
 def _issue_and_install_cert(acme_sh, host, cert_path, key_path, cf_token, cf_zone_id):
     os.makedirs(os.path.dirname(cert_path), exist_ok=True)
     os.makedirs(os.path.dirname(key_path), exist_ok=True)
@@ -157,7 +123,10 @@ def _issue_and_install_cert(acme_sh, host, cert_path, key_path, cf_token, cf_zon
 
     ui.step(f"签发/更新证书 (Cloudflare DNS-01): {host}")
     run_cmd(f"{_q(acme_sh)} --set-default-ca --server {ACME_CA}")
-    _run_acme_issue(acme_sh, host, cf_token, cf_zone_id)
+    run_cmd(
+        f"{CF_TOKEN_ENV}={_q(cf_token)} {CF_ZONE_ID_ENV}={_q(cf_zone_id)} "
+        f"{_q(acme_sh)} --issue --dns dns_cf -d {_q(host)} --keylength ec-256 --server {ACME_CA}"
+    )
     run_cmd(
         f"{_q(acme_sh)} --install-cert -d {_q(host)} --ecc "
         f"--fullchain-file {_q(cert_path)} "
