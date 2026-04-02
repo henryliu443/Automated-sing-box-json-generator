@@ -1,91 +1,188 @@
 # Automated-sing-box-json-generator
 
-由于本人头昏眼花看json看得好累，和ai一起vibecoding一个一键脚本
-当前默认采用三子域名 + SNI 分流（reality/hy2/tuic）结构，主要为了方便自用。
+Sing-box + Cloudflare WARP 一键自动部署工具。
 
-# 🚀 Sing-box & WARP Watchdog 一键无痕部署
-
-本工具旨在实现 **“云端存储脚本，本地无痕部署”**。每次运行都会生成一套全新的随机凭据，并自动配置 Watchdog 守护进程。
-
-### ✨ 核心功能
-
-* **随机强凭据生成**：自动生成 20 位密码，AnyTLS、TUIC、Hy2 分别独立。
-* **SNI 协议分层**：三协议默认绑定三子域名，客户端配置输出为域名直连（de-IP）。
-* **伪装与接入分离**：Reality 使用独立握手伪装域名，连接域名仍为你的三条子域名。
-* **证书自动签发**：自动为 TUIC/Hy2 子域名签发并安装 Let's Encrypt 证书（Cloudflare DNS-01）。
-* **严格 TLS 校验**：客户端 TUIC/Hy2 默认启用证书严格校验（不再 `insecure`）。
-* **端口冲突防护**：部署中自动检查 `23244/7443/9443` 端口归属；若使用 WARP 本地代理模式，额外检查 `40000`。
-* **自动化 Watchdog**：集成双重检测逻辑（Ping 检测 + Cloudflare Trace 穿透检测），发现 WARP 掉线自动重连。
-* **默认无日志落盘**：生成的 `sing-box` 配置默认关闭日志，Watchdog 也不再写入 `/var/log/warp_watchdog.log`。
-* **固定 sing-box 版本**：安装阶段固定使用 `v1.13.0-beta.7`，避免被上游最新版本行为变更影响。
-* **官方 WARP 安装**：默认安装 Cloudflare 官方 `cloudflare-warp`（`warp-svc` + `warp-cli`），并初始化本地代理模式（`mode proxy` / `127.0.0.1:40000`）。
-* **WARP 双模式兼容**：自动识别 WARP 本地代理模式 (`127.0.0.1:40000`) 与系统隧道模式 (`warp-cli connect`)。
-* **任务去重**：部署时自动清理旧的 `crontab` 任务，防止系统任务堆积。
-* **配置模块化**：安装检查、凭据生成、配置生成、Watchdog 部署已拆分为独立模块。
-* **无痕运行**：凭据仅在内存生成并打印，脚本本身不存储任何敏感信息。
+支持 AnyTLS (Reality) / TUIC / Hysteria2 三协议可选组合，自动完成依赖安装、DNS 记录创建、TLS 证书签发、配置生成、Watchdog 守护部署。
 
 ---
 
-### 📥 一键部署命令
-在 VPS（`root` 用户）终端执行以下命令：
+## 快速开始
+
+### 一键远程部署
+
+在 VPS（`root` 用户）上执行：
 
 ```bash
-curl -Ls "https://raw.githubusercontent.com/henryliu443/Automated-sing-box-json-generator/refs/heads/main/main.py" > main.py && python3 main.py && rm main.py
+curl -Ls "https://raw.githubusercontent.com/henryliu443/Automated-sing-box-json-generator/refs/heads/main/main.py" > main.py && python3 main.py
 ```
 
-或克隆仓库后直接运行：
+### 克隆仓库后运行
 
 ```bash
-python3 main.py
+git clone https://github.com/henryliu443/Automated-sing-box-json-generator.git
+cd Automated-sing-box-json-generator
+python3 main.py deploy
 ```
 
----
-
-### 🛠️ 部署逻辑说明
-
-1. **输入主域名**：脚本会提示输入主域名，自动生成三条协议子域名。
-2. **依赖检查/安装**：自动检查并确保官方 Cloudflare WARP（`warp-svc` / `warp-cli`）、`sing-box` 可用，并自动识别 WARP 当前运行模式。
-3. **签发证书**：通过 Cloudflare DNS-01 为 `tuic`/`hy2` 子域名签发证书。
-4. **生成凭据**：调用 `sing-box` 生成 UUID 与 Reality KeyPair，并生成随机密码。
-5. **写入配置**：
-* 服务端配置：`/etc/sing-box/config.json`
-* 守护脚本：`/root/warp_lazy_watchdog.sh`
-6. **挂载定时任务**：每 60 秒执行一次 Watchdog，自动去重旧任务。
-7. **重启与输出**：重启 `sing-box`，输出端口快照与客户端 GUI JSON。
+部署过程中会交互式提示输入：
+1. 主域名（如 `example.com`）
+2. Cloudflare API Token 和 Zone ID
+3. 要启用的协议（默认全选）
 
 ---
 
-### 📁 项目结构（当前）
+## CLI 子命令
 
-* `deploy.py`：核心部署流程（依赖检查、写配置、挂 watchdog、重启）
-* `installer.py`：root 校验与依赖安装检查（官方 `warp-svc` / `warp-cli`、WARP 本地代理 / 系统隧道、sing-box）
-* `credentials.py`：动态生成 UUID、Reality 密钥与随机密码
-* `config.py`：生成服务端/客户端配置 JSON（函数化）
-* `certs.py`：Cloudflare DNS-01 证书签发与安装（TUIC/Hy2）
-* `watchdog.py`：写入 watchdog 脚本并挂载 crontab
-* `main.py`：自举入口（每次启动都会刷新模块，再执行 `deploy.main()`）
+| 命令 | 说明 |
+|------|------|
+| `python3 main.py` | 无参数默认执行完整部署 |
+| `python3 main.py deploy` | 完整部署（可选 `--domain` / `--protocols`） |
+| `python3 main.py config` | 使用已保存的状态重新生成配置（可选 `--protocols` 切换协议） |
+| `python3 main.py export` | 导出客户端配置（`--format json\|link\|qr`，`--output` 指定文件） |
+| `python3 main.py status` | 查看部署状态和服务健康度 |
+| `python3 main.py install` | 仅安装依赖（WARP、sing-box） |
+| `python3 main.py update` | 更新 sing-box 到最新版本 |
+| `python3 main.py cleanup-dns` | 删除所有由本工具创建的 Cloudflare DNS 记录 |
 
----
-
-### ⚠️ 安全提醒
-
-* **Public 仓库安全**：脚本不硬编码固定密码
-* **即时保存**：由于采用“无痕模式”，GUI JSON 仅在部署结束时显示一次，请务必及时保存。
-
----
-
-### 🔐 证书挑战方式说明
-
-当前仅使用 **Cloudflare DNS-01 (`dns_cf`)**。
-
-脚本支持两种方式提供凭据：
-
-1. 运行时交互输入 `CF_Token` / `CF_Zone_ID`
-2. 运行前导出环境变量（自动读取）
-
-若你更喜欢环境变量方式，请在运行前导出：
+### 示例
 
 ```bash
-export CF_Token="你的Cloudflare API Token"
-export CF_Zone_ID="你的Zone ID"
+# 非交互式部署，仅启用 AnyTLS 和 TUIC
+python3 main.py deploy --domain example.com --protocols anytls,tuic
+
+# 导出分享链接
+python3 main.py export --format link
+
+# 导出客户端 JSON 到文件
+python3 main.py export --format json --output client.json
+
+# 导出二维码（需 pip3 install qrcode）
+python3 main.py export --format qr
+
+# 切换到仅 Hysteria2
+python3 main.py config --protocols hy2
 ```
+
+---
+
+## 核心特性
+
+### 协议可选化
+
+部署时交互选择或通过 `--protocols` 指定要启用的协议组合：
+
+- **AnyTLS (Reality)** — TCP，无需 TLS 证书，使用 Reality 伪装
+- **TUIC** — UDP/QUIC，需要 TLS 证书
+- **Hysteria2** — UDP/QUIC，需要 TLS 证书
+
+仅启用 AnyTLS 时无需签发证书，部署更快。
+
+### DNS 记录自动管理
+
+部署时自动通过 Cloudflare API：
+- 为每个协议生成**随机子域名前缀**（每次部署唯一，不在代码中硬编码）
+- 检测服务器公网 IP
+- 自动创建 A 记录，IP 变更时自动更新
+- 协议切换时自动清理不再需要的记录
+- 所有记录打上 `managed:sing-box-deploy` 标识，不会误删用户其他 DNS 记录
+
+### 凭据安全
+
+- 每次部署随机生成 UUID、Reality 密钥对、各协议独立密码、随机 short_id
+- 凭据存储于 VPS 本地 `/etc/sing-box/deploy-state.json`（权限 `0600`，仅 root 可读）
+- 服务端配置 `/etc/sing-box/config.json` 同样 `0600` 权限
+- 代码仓库中不含任何硬编码凭据或子域名前缀
+- `deploy-state.json` 已加入 `.gitignore`
+
+### 客户端导出
+
+- **JSON** — 完整 sing-box 客户端配置，可直接导入 GUI 客户端
+- **Share Link** — 标准 URI 格式（`tuic://`、`hy2://`、`anytls://`）
+- **QR Code** — 终端 ASCII 二维码，手机扫码导入
+
+### WARP 集成
+
+- 自动安装官方 Cloudflare WARP（`warp-svc` + `warp-cli`）
+- 自动识别本地代理模式（`127.0.0.1:40000`）与系统隧道模式
+- 集成 Watchdog 守护脚本，每分钟检测 WARP 健康状态，自动重连/重注册
+
+### 其他
+
+- TLS 证书通过 acme.sh + Cloudflare DNS-01 自动签发和续签
+- sing-box 自动更新定时任务（每日凌晨检查 GitHub Latest Release）
+- 端口冲突自动检测
+- 部署状态持久化，支持重新生成配置和导出而无需重新部署
+
+---
+
+## 部署流程
+
+```
+输入主域名 + CF 凭据 + 选择协议
+        │
+        ▼
+  生成随机子域名前缀
+        │
+        ▼
+  检测服务器公网 IP → Cloudflare API 创建 A 记录
+        │
+        ▼
+  安装依赖 (WARP + sing-box) + 端口检查
+        │
+        ▼
+  签发 TLS 证书 (仅 TUIC/Hy2 需要)
+        │
+        ▼
+  生成随机凭据 → 写入服务端配置 + 保存部署状态
+        │
+        ▼
+  部署 Watchdog → 重启 sing-box → 输出客户端配置
+```
+
+---
+
+## 项目结构
+
+| 文件 | 说明 |
+|------|------|
+| `main.py` | CLI 入口，argparse 子命令分发，远程 bootstrap |
+| `deploy.py` | 核心部署/重配置/状态查看流程 |
+| `config.py` | 服务端/客户端 sing-box 配置生成（按协议动态组装） |
+| `cloudflare_dns.py` | Cloudflare API DNS 记录管理（创建/更新/清理） |
+| `credentials.py` | UUID、Reality 密钥、随机密码、子域名前缀生成 |
+| `certs.py` | acme.sh + Cloudflare DNS-01 证书签发 |
+| `installer.py` | WARP、sing-box 安装与端口检查 |
+| `state.py` | 部署状态持久化（`/etc/sing-box/deploy-state.json`） |
+| `export.py` | 客户端配置导出（JSON / Share Link / QR） |
+| `watchdog.py` | WARP Watchdog 脚本生成与 crontab 挂载 |
+| `route_profile.py` | 客户端路由规则与 DNS 配置 |
+| `cli_ui.py` | 终端 UI 输出函数 |
+
+---
+
+## Cloudflare 凭据
+
+需要一个具有 **DNS 编辑权限** 的 Cloudflare API Token 和对应的 Zone ID。
+
+提供方式（二选一）：
+
+1. **运行时交互输入**（部署时会自动提示）
+2. **环境变量**（运行前导出）：
+
+```bash
+export CF_Token="你的 Cloudflare API Token"
+export CF_Zone_ID="你的 Zone ID"
+```
+
+这些凭据**不会被持久化到磁盘**，仅在部署过程中使用。
+
+---
+
+## 安全说明
+
+本项目设计为公开仓库安全存储：
+
+- 所有敏感数据（密码、私钥、子域名前缀）在部署时动态生成，存储于 VPS 的 `0600` 文件中
+- 代码中不含任何硬编码凭据
+- Cloudflare API Token 仅在内存中使用，不写入磁盘
+- DNS 记录通过 API comment 标识，清理时不会误删用户其他记录

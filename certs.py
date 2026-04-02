@@ -3,7 +3,7 @@ import shlex
 import subprocess
 
 import cli_ui as ui
-from config import HY2_CERT_PATH, HY2_KEY_PATH, TUIC_CERT_PATH, TUIC_KEY_PATH
+from config import ALL_PROTOCOLS, PROTOCOL_DEFS
 from installer import SINGBOX_SERVICE, run_cmd
 
 ACME_SH_PATH = "/root/.acme.sh/acme.sh"
@@ -136,29 +136,43 @@ def _issue_and_install_cert(acme_sh, host, cert_path, key_path, cf_token, cf_zon
     run_cmd(f"chmod 600 {_q(key_path)}")
 
 
-def ensure_tls_certificates(protocol_hosts, cf_token=None, cf_zone_id=None):
-    for key in ("tuic", "hy2"):
-        if key not in protocol_hosts:
-            raise RuntimeError(f"protocol_hosts 缺少 {key} 域名")
+def needs_tls_certificates(enabled_protocols=None):
+    """Return True if any of the enabled protocols requires a TLS certificate."""
+    if enabled_protocols is None:
+        enabled_protocols = ALL_PROTOCOLS
+    return any(PROTOCOL_DEFS[p]["needs_tls_cert"] for p in enabled_protocols)
+
+
+def ensure_tls_certificates(protocol_hosts, cf_token=None, cf_zone_id=None,
+                            enabled_protocols=None):
+    if enabled_protocols is None:
+        enabled_protocols = ALL_PROTOCOLS
+
+    cert_jobs = []
+    for proto in enabled_protocols:
+        pdef = PROTOCOL_DEFS[proto]
+        if not pdef["needs_tls_cert"]:
+            continue
+        host_key = pdef["host_key"]
+        if host_key not in protocol_hosts:
+            raise RuntimeError(f"protocol_hosts 缺少 {host_key} 域名")
+        cert_jobs.append((protocol_hosts[host_key], pdef["cert_path"], pdef["key_path"]))
+
+    if not cert_jobs:
+        ui.info("所有启用的协议均不需要 TLS 证书，跳过签发")
+        return
 
     _ensure_openssl()
     cf_token, cf_zone_id = _ensure_dns_credentials(cf_token=cf_token, cf_zone_id=cf_zone_id)
     ui.info("证书挑战方式: Cloudflare DNS-01 (dns_cf)")
     acme_sh = _resolve_acme_sh()
 
-    _issue_and_install_cert(
-        acme_sh=acme_sh,
-        host=protocol_hosts["tuic"],
-        cert_path=TUIC_CERT_PATH,
-        key_path=TUIC_KEY_PATH,
-        cf_token=cf_token,
-        cf_zone_id=cf_zone_id,
-    )
-    _issue_and_install_cert(
-        acme_sh=acme_sh,
-        host=protocol_hosts["hy2"],
-        cert_path=HY2_CERT_PATH,
-        key_path=HY2_KEY_PATH,
-        cf_token=cf_token,
-        cf_zone_id=cf_zone_id,
-    )
+    for host, cert_path, key_path in cert_jobs:
+        _issue_and_install_cert(
+            acme_sh=acme_sh,
+            host=host,
+            cert_path=cert_path,
+            key_path=key_path,
+            cf_token=cf_token,
+            cf_zone_id=cf_zone_id,
+        )

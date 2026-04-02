@@ -216,16 +216,18 @@ def print_port_snapshot():
     run_cmd("ss -tulnp")
 
 
-def ensure_port_safety(warp_mode="proxy"):
+def ensure_port_safety(warp_mode="proxy", protocol_ports=None):
     ensure_ss_tool()
 
-    # sing-box inbound ports
-    assert_port_allowed(23244, "tcp", {"sing-box"})
-    assert_port_allowed(7443, "udp", {"sing-box"})
-    assert_port_allowed(9443, "udp", {"sing-box"})
+    if protocol_ports is not None:
+        for port, transport in protocol_ports:
+            assert_port_allowed(port, transport, {"sing-box"})
+    else:
+        assert_port_allowed(23244, "tcp", {"sing-box"})
+        assert_port_allowed(7443, "udp", {"sing-box"})
+        assert_port_allowed(9443, "udp", {"sing-box"})
 
     if warp_mode == "proxy":
-        # local WARP socks proxy
         allowed = {WARP_SERVICE, *LEGACY_WARP_SERVICES}
         assert_port_allowed(WARP_PROXY_PORT, "tcp", allowed)
         assert_port_required(WARP_PROXY_PORT, "tcp", allowed)
@@ -855,13 +857,13 @@ def ensure_singbox():
     ensure_singbox_service()
 
 
-def ensure_dependencies():
+def ensure_dependencies(protocol_ports=None):
     require_root()
     ensure_system_cloudflare_dns()
     ensure_ss_tool()
     warp_mode = ensure_warp()
     ensure_singbox()
-    ensure_port_safety(warp_mode)
+    ensure_port_safety(warp_mode, protocol_ports)
     print_port_snapshot()
     return warp_mode
 
