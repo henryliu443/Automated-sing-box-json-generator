@@ -2,6 +2,7 @@ DNS_DIRECT_SERVER = "223.5.5.5"
 DNS_REMOTE_SERVER = "1.1.1.1"
 DNS_REMOTE_PATH = "/dns-query"
 GEOIP_CN_RULESET_URL = "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geoip/cn.srs"
+GEOSITE_CN_RULESET_URL = "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/cn.srs"
 
 SKIP_PROXY_DOMAINS = ["localhost", "captive.apple.com"]
 SKIP_PROXY_SUFFIXES = ["local"]
@@ -124,6 +125,9 @@ def build_dns_config(hosts):
     if PROXY_KEYWORD:
         rules.append({"domain_keyword": PROXY_KEYWORD, "server": "dns-remote"})
 
+    if USE_GEOIP_CN:
+        rules.append({"rule_set": "geosite-cn", "server": "dns-direct"})
+
     return {
         "servers": [
             {
@@ -191,18 +195,24 @@ def build_route_config(sniff_inbound=None):
         route["rule_set"] = [
             {
                 "type": "remote",
+                "tag": "geosite-cn",
+                "format": "binary",
+                "url": GEOSITE_CN_RULESET_URL,
+                "download_detour": "direct",
+            },
+            {
+                "type": "remote",
                 "tag": "geoip-cn",
                 "format": "binary",
                 "url": GEOIP_CN_RULESET_URL,
                 "download_detour": "direct",
-            }
+            },
         ]
         route["rules"].append(
-            {
-                "rule_set": "geoip-cn",
-                "action": "route",
-                "outbound": "direct",
-            }
+            {"rule_set": "geosite-cn", "action": "route", "outbound": "direct"}
+        )
+        route["rules"].append(
+            {"rule_set": "geoip-cn", "action": "route", "outbound": "direct"}
         )
 
     return route
