@@ -80,9 +80,7 @@ IGNORED_RULES = [
     "IP-ASN,132203,DIRECT,no-resolve", "USER-AGENT,Line*,PROXY",
 ]
 
-# Keep unknown traffic on direct so a dead proxy pool does not take down
-# all TCP/UDP connectivity. Explicit proxy rules still use proxy-best.
-ROUTE_FINAL = "direct"
+ROUTE_FINAL = "route-mode"
 USE_GEOIP_CN = True
 
 
@@ -143,7 +141,7 @@ def build_dns_config(hosts):
             },
         ],
         "rules": rules,
-        "final": "dns-direct",
+        "final": "dns-remote",
         "strategy": "prefer_ipv4",
     }
 
