@@ -136,7 +136,7 @@ def build_dns_config(hosts):
                 "tag": "dns-remote",
                 "server": DNS_REMOTE_SERVER,
                 "path": DNS_REMOTE_PATH,
-                "detour": "proxy-best",
+                "detour": "global",
                 "domain_resolver": "dns-direct",
             },
         ],
@@ -166,19 +166,19 @@ def build_route_config(sniff_inbound=None):
     if direct_exact:
         rules.append({"domain": direct_exact, "action": "route", "outbound": "direct"})
     if PROXY_EXACT:
-        rules.append({"domain": PROXY_EXACT, "action": "route", "outbound": "proxy-best"})
+        rules.append({"domain": PROXY_EXACT, "action": "route", "outbound": "global"})
     if direct_suffix:
         rules.append({"domain_suffix": direct_suffix, "action": "route", "outbound": "direct"})
     if PROXY_SUFFIX:
-        rules.append({"domain_suffix": PROXY_SUFFIX, "action": "route", "outbound": "proxy-best"})
+        rules.append({"domain_suffix": PROXY_SUFFIX, "action": "route", "outbound": "global"})
     if DIRECT_KEYWORD:
         rules.append({"domain_keyword": DIRECT_KEYWORD, "action": "route", "outbound": "direct"})
     if PROXY_KEYWORD:
-        rules.append({"domain_keyword": PROXY_KEYWORD, "action": "route", "outbound": "proxy-best"})
+        rules.append({"domain_keyword": PROXY_KEYWORD, "action": "route", "outbound": "global"})
     if DIRECT_CIDR:
         rules.append({"ip_cidr": DIRECT_CIDR, "action": "route", "outbound": "direct"})
     if PROXY_CIDR:
-        rules.append({"ip_cidr": PROXY_CIDR, "action": "route", "outbound": "proxy-best"})
+        rules.append({"ip_cidr": PROXY_CIDR, "action": "route", "outbound": "global"})
 
     route = {
         "rules": rules,

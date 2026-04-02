@@ -11,10 +11,10 @@ HY2_CERT_PATH = "/etc/hysteria/server.crt"
 HY2_KEY_PATH = "/etc/hysteria/server.key"
 
 CLIENT_TUN_INBOUND_TAG = "tun-in"
-CLIENT_PROXY_BEST_TAG = "proxy-best"
+CLIENT_PROXY_BEST_TAG = "global"
 CLIENT_PROXY_AUTO_TAG = "proxy-auto"
 CLIENT_ROUTE_MODE_TAG = "route-mode"
-CLIENT_GLOBAL_TAG = "global"
+CLIENT_ROUTE_TAG = "route"
 
 SERVER_DNS_SERVERS = ("1.1.1.1", "1.0.0.1")
 SERVER_DNS_TAG = "dns-server"
@@ -267,14 +267,14 @@ def build_client_outbounds(creds, hosts, enabled_protocols=None):
         {
             "type": "selector",
             "tag": CLIENT_ROUTE_MODE_TAG,
-            "outbounds": ["direct", CLIENT_GLOBAL_TAG],
-            "default": "direct",
+            "outbounds": [CLIENT_ROUTE_TAG, CLIENT_PROXY_BEST_TAG, "direct"],
+            "default": CLIENT_ROUTE_TAG,
             "interrupt_exist_connections": True,
         },
         {
             "type": "selector",
             "tag": CLIENT_PROXY_BEST_TAG,
-            "outbounds": [CLIENT_PROXY_AUTO_TAG, *outbound_tags, "direct"],
+            "outbounds": [CLIENT_PROXY_AUTO_TAG, *outbound_tags],
             "default": CLIENT_PROXY_AUTO_TAG,
             "interrupt_exist_connections": True,
         },
@@ -286,19 +286,12 @@ def build_client_outbounds(creds, hosts, enabled_protocols=None):
             "interval": "10m",
             "tolerance": 50,
         },
-        {
-            "type": "urltest",
-            "tag": CLIENT_GLOBAL_TAG,
-            "outbounds": outbound_tags,
-            "url": "https://cp.cloudflare.com/generate_204",
-            "interval": "10m",
-            "tolerance": 50,
-        },
     ]
 
     for proto in enabled_protocols:
         result.append(_CLIENT_OUTBOUND_BUILDERS[proto](creds, hosts))
 
+    result.append({"type": "direct", "tag": CLIENT_ROUTE_TAG})
     result.append({"type": "direct", "tag": "direct"})
     return result
 
