@@ -113,6 +113,31 @@ def _resolve_acme_sh():
     raise RuntimeError("acme.sh 安装失败")
 
 
+def _issue_cert(acme_sh, host, cf_token, cf_zone_id):
+    """Run acme.sh --issue. Exit code 2 means cert already valid (skip)."""
+    cmd = (
+        f"{CF_TOKEN_ENV}={_q(cf_token)} {CF_ZONE_ID_ENV}={_q(cf_zone_id)} "
+        f"{_q(acme_sh)} --issue --dns dns_cf -d {_q(host)} "
+        f"--keylength ec-256 --server {ACME_CA}"
+    )
+    ui.command(cmd)
+    result = subprocess.run(
+        cmd, shell=True,
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+    )
+    output = (result.stdout or "").strip()
+    if output:
+        print(output, flush=True)
+
+    if result.returncode == 0:
+        return
+    # acme.sh exit 2 = cert still valid, renewal skipped — not an error
+    if result.returncode == 2 and "Skipping" in output:
+        ui.info(f"证书仍在有效期内，跳过签发: {host}")
+        return
+    raise RuntimeError(f"acme.sh --issue 失败 (exit {result.returncode}): {host}")
+
+
 def _issue_and_install_cert(acme_sh, host, cert_path, key_path, cf_token, cf_zone_id):
     os.makedirs(os.path.dirname(cert_path), exist_ok=True)
     os.makedirs(os.path.dirname(key_path), exist_ok=True)
@@ -123,10 +148,9 @@ def _issue_and_install_cert(acme_sh, host, cert_path, key_path, cf_token, cf_zon
 
     ui.step(f"签发/更新证书 (Cloudflare DNS-01): {host}")
     run_cmd(f"{_q(acme_sh)} --set-default-ca --server {ACME_CA}")
-    run_cmd(
-        f"{CF_TOKEN_ENV}={_q(cf_token)} {CF_ZONE_ID_ENV}={_q(cf_zone_id)} "
-        f"{_q(acme_sh)} --issue --dns dns_cf -d {_q(host)} --keylength ec-256 --server {ACME_CA}"
-    )
+    _issue_cert(acme_sh, host, cf_token, cf_zone_id)
+    # Always install — the cert may exist in acme.sh's store but not yet
+    # copied to the paths sing-box expects.
     run_cmd(
         f"{_q(acme_sh)} --install-cert -d {_q(host)} --ecc "
         f"--fullchain-file {_q(cert_path)} "
