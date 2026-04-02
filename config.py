@@ -258,9 +258,18 @@ _CLIENT_OUTBOUND_BUILDERS = {
 # Composite builders
 # ---------------------------------------------------------------------------
 
+def _validate_protocols(enabled_protocols):
+    unknown = [p for p in enabled_protocols if p not in PROTOCOL_DEFS]
+    if unknown:
+        raise ValueError(f"unknown protocol(s): {unknown}")
+    if not enabled_protocols:
+        raise ValueError("at least one protocol must be enabled")
+
+
 def build_client_outbounds(creds, hosts, enabled_protocols=None):
     if enabled_protocols is None:
         enabled_protocols = ALL_PROTOCOLS
+    _validate_protocols(enabled_protocols)
 
     outbound_tags = [PROTOCOL_DEFS[p]["outbound_tag"] for p in enabled_protocols]
 
@@ -302,6 +311,7 @@ def build_server_config(creds, protocol_hosts=None, warp_mode="proxy", enabled_p
         raise ValueError("protocol_hosts is required")
     if enabled_protocols is None:
         enabled_protocols = ALL_PROTOCOLS
+    _validate_protocols(enabled_protocols)
 
     hosts = protocol_hosts
     inbounds = [_SERVER_INBOUND_BUILDERS[p](creds, hosts) for p in enabled_protocols]
@@ -352,6 +362,7 @@ def build_client_config(creds, protocol_hosts=None, enabled_protocols=None):
         raise ValueError("protocol_hosts is required")
     if enabled_protocols is None:
         enabled_protocols = ALL_PROTOCOLS
+    _validate_protocols(enabled_protocols)
 
     hosts = protocol_hosts
 

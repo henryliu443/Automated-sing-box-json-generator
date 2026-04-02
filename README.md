@@ -101,6 +101,15 @@ route-mode (selector)          ← route.final 指向这里
 
 > **注意**：显式匹配的路由规则（如 PROXY_SUFFIX / DIRECT_SUFFIX）在所有模式下始终生效，`route-mode` 仅控制**未被规则命中**的流量去向。
 
+**排查指南**：
+
+| 现象 | 排查步骤 |
+|------|---------|
+| 全局模式下某些网站打不开 | 切到 `global` → 确认 `proxy-auto` 已选中且测速通过；若节点全挂，在 `global` 里手动切到 `route` 兜底 |
+| 规则模式下国内网站走了代理 | 检查 `rules.json` 的 `direct_suffix` 是否包含该域名，或确认 GEOSITE-CN 规则集已下载 |
+| DNS 解析慢 | DNS final 为 `dns-remote`（1.1.1.1 DoH via 代理），若代理延迟高会影响首次解析；已匹配的国内域名走 `dns-direct`（223.5.5.5）不受影响 |
+| 想临时绕过所有代理 | 切 `route-mode` → `direct`，显式 proxy 规则仍生效但 final 走直连 |
+
 ### DNS 记录自动管理
 
 部署时自动通过 Cloudflare API：

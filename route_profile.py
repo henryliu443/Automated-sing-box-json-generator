@@ -1,7 +1,20 @@
 import json
 from pathlib import Path
 
-_rules = json.loads((Path(__file__).parent / "rules.json").read_text())
+_RULES_PATH = Path(__file__).parent / "rules.json"
+_REQUIRED_BUCKETS = (
+    "direct_exact", "proxy_exact",
+    "direct_suffix", "proxy_suffix",
+    "direct_keyword", "proxy_keyword",
+    "direct_cidr", "proxy_cidr",
+)
+
+_rules = json.loads(_RULES_PATH.read_text())
+for _key in _REQUIRED_BUCKETS:
+    if _key not in _rules:
+        raise KeyError(f"rules.json missing required key: {_key}")
+    if not isinstance(_rules[_key], list):
+        raise TypeError(f"rules.json[{_key!r}] must be a list, got {type(_rules[_key]).__name__}")
 
 DNS_DIRECT_SERVER = "223.5.5.5"
 DNS_REMOTE_SERVER = "1.1.1.1"
@@ -166,3 +179,14 @@ def build_route_config(sniff_inbound=None):
         )
 
     return route
+
+
+def rule_summary():
+    """Return a compact string summarising loaded rule counts."""
+    parts = [
+        f"direct: {len(DIRECT_EXACT)}exact {len(DIRECT_SUFFIX)}suffix {len(DIRECT_KEYWORD)}kw {len(DIRECT_CIDR)}cidr",
+        f"proxy: {len(PROXY_EXACT)}exact {len(PROXY_SUFFIX)}suffix {len(PROXY_KEYWORD)}kw {len(PROXY_CIDR)}cidr",
+    ]
+    if USE_GEOIP_CN:
+        parts.append("geosite-cn + geoip-cn")
+    return " | ".join(parts)
