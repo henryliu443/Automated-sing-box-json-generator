@@ -2,7 +2,7 @@ import json
 import os
 from datetime import datetime, timezone
 
-STATE_PATH = "/etc/sing-box/deploy-state.json"
+STATE_PATH = "/etc/sing-box-deploy/state.json"
 STATE_VERSION = 1
 
 
