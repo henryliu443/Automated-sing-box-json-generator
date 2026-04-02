@@ -140,6 +140,10 @@ def build_client_outbounds(creds, hosts):
     ]
 
 
+SERVER_DNS_SERVERS = ("1.1.1.1", "1.0.0.1")
+SERVER_DNS_TAG = "dns-server"
+
+
 def build_server_config(creds, protocol_hosts=None, warp_mode="proxy"):
     if not protocol_hosts:
         raise ValueError("protocol_hosts is required")
@@ -148,6 +152,16 @@ def build_server_config(creds, protocol_hosts=None, warp_mode="proxy"):
     return {
 
         "log": {"disabled": True},
+
+        "dns": {
+            "servers": [
+                {
+                    "type": "udp",
+                    "tag": SERVER_DNS_TAG,
+                    "server": SERVER_DNS_SERVERS[0],
+                },
+            ],
+        },
 
         "inbounds": [
 
@@ -189,7 +203,7 @@ def build_server_config(creds, protocol_hosts=None, warp_mode="proxy"):
 
                     "enabled": True,
 
-                    "server_name": REALITY_DECOY_SERVER,  # ← 修复：改为伪装域名 react.dev
+                    "server_name": REALITY_DECOY_SERVER,
 
                     "reality": {
 
@@ -285,6 +299,7 @@ def build_server_config(creds, protocol_hosts=None, warp_mode="proxy"):
                 {
                     "inbound": ANYTLS_INBOUND_TAG,
                     "action": "resolve",
+                    "server": SERVER_DNS_TAG,
                     "strategy": "prefer_ipv4",
                 },
                 {
@@ -300,6 +315,8 @@ def build_server_config(creds, protocol_hosts=None, warp_mode="proxy"):
             ],
 
             "final": "warp-out",
+
+            "default_domain_resolver": SERVER_DNS_TAG,
 
         },
 
