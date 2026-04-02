@@ -4,7 +4,6 @@ import select
 import shlex
 import subprocess
 import time
-import urllib.request
 
 import cli_ui as ui
 
@@ -28,12 +27,6 @@ WARP_SERVICE_READY_TIMEOUT = 15
 SINGBOX_VERSION = "1.13.0-beta.7"
 SINGBOX_RELEASE_TAG = f"v{SINGBOX_VERSION}"
 SINGBOX_DOWNLOAD_BASE = f"https://github.com/SagerNet/sing-box/releases/download/{SINGBOX_RELEASE_TAG}"
-SINGBOX_AUTO_UPDATE_SCRIPT = "/usr/local/bin/singbox_auto_update.py"
-SINGBOX_AUTO_UPDATE_LOG = "/var/log/singbox-auto-update.log"
-SINGBOX_AUTO_UPDATE_CRON = (
-    f"17 4 * * * /usr/bin/env python3 {SINGBOX_AUTO_UPDATE_SCRIPT} >> {SINGBOX_AUTO_UPDATE_LOG} 2>&1"
-)
-SINGBOX_AUTO_UPDATE_CRON_FILE = "/etc/cron.d/singbox-auto-update"
 SINGBOX_ARCH_MAP = {
     "x86_64": "amd64",
     "amd64": "amd64",
@@ -544,23 +537,10 @@ def resolve_singbox_arch():
     raise RuntimeError(f"暂不支持当前 CPU 架构自动安装 sing-box: {machine}")
 
 
-def get_latest_singbox_version():
-    req = urllib.request.Request(
-        "https://api.github.com/repos/SagerNet/sing-box/releases/latest",
-        headers={"User-Agent": "automated-sing-box-installer"},
-    )
-    with urllib.request.urlopen(req, timeout=20) as resp:
-        raw = resp.read().decode("utf-8")
-    match = re.search(r'"tag_name"\s*:\s*"v?([^"]+)"', raw)
-    if not match:
-        raise RuntimeError("无法解析 sing-box 最新 release 版本")
-    return match.group(1).strip()
-
-
-def build_singbox_download_url(version):
+def build_singbox_download_url():
     arch = resolve_singbox_arch()
-    asset = f"sing-box-{version}-linux-{arch}.tar.gz"
-    return f"https://github.com/SagerNet/sing-box/releases/download/v{version}/{asset}", asset
+    asset = f"sing-box-{SINGBOX_VERSION}-linux-{arch}.tar.gz"
+    return f"{SINGBOX_DOWNLOAD_BASE}/{asset}", asset
 
 
 def singbox_runnable(binary_path=None):
@@ -606,15 +586,15 @@ def get_singbox_version(binary_path=None):
     return match.group(1).strip()
 
 
-def install_singbox_version(version):
-    download_url, archive_name = build_singbox_download_url(version)
+def install_singbox_pinned():
+    download_url, archive_name = build_singbox_download_url()
     arch = resolve_singbox_arch()
     extract_dir = run_cmd("mktemp -d").strip()
     archive_path = os.path.join(extract_dir, archive_name)
-    package_dir = os.path.join(extract_dir, f"sing-box-{version}-linux-{arch}")
+    package_dir = os.path.join(extract_dir, f"sing-box-{SINGBOX_VERSION}-linux-{arch}")
     binary_path = os.path.join(package_dir, "sing-box")
 
-    ui.info(f"安装 sing-box 版本: v{version}")
+    ui.info(f"固定安装 sing-box 版本: {SINGBOX_RELEASE_TAG}")
     run_cmd(f"curl -fsSL -o {shlex.quote(archive_path)} {shlex.quote(download_url)}")
     run_cmd(f"tar -xzf {shlex.quote(archive_path)} -C {shlex.quote(extract_dir)}")
     if not os.path.isfile(binary_path):
@@ -673,167 +653,29 @@ def ensure_warp():
     raise RuntimeError("WARP 安装后既未检测到本地代理，也未检测到系统级隧道")
 
 
-def build_singbox_auto_update_script():
-    return """#!/usr/bin/env python3
-import json
-import os
-import platform
-import shutil
-import subprocess
-import tarfile
-import tempfile
-import urllib.request
-
-GITHUB_RELEASE_API = "https://api.github.com/repos/SagerNet/sing-box/releases/latest"
-INSTALL_PATH = "/usr/bin/sing-box"
-SERVICE_NAME = "sing-box"
-ARCH_MAP = {
-    "x86_64": "amd64",
-    "amd64": "amd64",
-    "aarch64": "arm64",
-    "arm64": "arm64",
-    "i386": "386",
-    "i686": "386",
-    "armv7l": "armv7",
-    "armv6l": "armv6",
-    "armv5l": "armv5",
-}
-
-
-def run(cmd):
-    return subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-
-
-def current_version():
-    try:
-        out = run([INSTALL_PATH, "version"]).stdout
-    except Exception:
-        return None
-    first_line = out.splitlines()[0].strip() if out else ""
-    marker = "sing-box version "
-    if marker not in first_line:
-        return None
-    return first_line.split(marker, 1)[1].strip().lstrip("v")
-
-
-def latest_release():
-    req = urllib.request.Request(
-        GITHUB_RELEASE_API,
-        headers={"User-Agent": "singbox-auto-update"},
-    )
-    with urllib.request.urlopen(req, timeout=20) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
-    tag = data.get("tag_name", "").strip()
-    if not tag:
-        raise RuntimeError("cannot parse latest release tag")
-    version = tag.lstrip("v")
-    return tag, version
-
-
-def resolve_asset(version):
-    machine = platform.machine().lower()
-    arch = ARCH_MAP.get(machine)
-    if not arch:
-        raise RuntimeError(f"unsupported arch: {machine}")
-    name = f"sing-box-{version}-linux-{arch}.tar.gz"
-    url = f"https://github.com/SagerNet/sing-box/releases/download/v{version}/{name}"
-    return url, name
-
-
-def install_latest(version):
-    url, name = resolve_asset(version)
-    with tempfile.TemporaryDirectory(prefix="singbox-update-") as tmp:
-        archive_path = os.path.join(tmp, name)
-        urllib.request.urlretrieve(url, archive_path)
-        with tarfile.open(archive_path, "r:gz") as tar:
-            tar.extractall(tmp)
-
-        package_dir = os.path.join(
-            tmp, f"sing-box-{version}-linux-{ARCH_MAP[platform.machine().lower()]}"
-        )
-        src_bin = os.path.join(package_dir, "sing-box")
-        if not os.path.isfile(src_bin):
-            raise RuntimeError(f"binary not found in archive: {src_bin}")
-
-        tmp_bin = f"{INSTALL_PATH}.new"
-        shutil.copy2(src_bin, tmp_bin)
-        os.chmod(tmp_bin, 0o755)
-
-        backup = f"{INSTALL_PATH}.bak"
-        if os.path.isfile(INSTALL_PATH):
-            shutil.copy2(INSTALL_PATH, backup)
-        os.replace(tmp_bin, INSTALL_PATH)
-
-    run([INSTALL_PATH, "version"])
-    run(["systemctl", "restart", SERVICE_NAME])
-
-
-def main():
-    if os.geteuid() != 0:
-        raise SystemExit("must run as root")
-
-    old = current_version()
-    _tag, latest = latest_release()
-    if old == latest:
-        print(f"[skip] sing-box already latest: {latest}")
-        return
-
-    print(f"[update] sing-box {old or 'unknown'} -> {latest}")
-    install_latest(latest)
-    now = current_version()
-    print(f"[done] current version: {now or 'unknown'}")
-
-
-if __name__ == "__main__":
-    main()
-"""
-
-
-def deploy_singbox_auto_update():
-    ui.step(f"写入 sing-box 自动更新脚本: {SINGBOX_AUTO_UPDATE_SCRIPT}")
-    with open(SINGBOX_AUTO_UPDATE_SCRIPT, "w", encoding="utf-8") as f:
-        f.write(build_singbox_auto_update_script())
-    os.chmod(SINGBOX_AUTO_UPDATE_SCRIPT, 0o755)
-
-    if command_exists("crontab"):
-        ui.step("写入 sing-box 自动更新 crontab")
-        cmd = (
-            f'(crontab -l 2>/dev/null | grep -v "{SINGBOX_AUTO_UPDATE_SCRIPT}"; '
-            f'echo "{SINGBOX_AUTO_UPDATE_CRON}") | crontab -'
-        )
-        run_cmd(cmd)
-    else:
-        ui.step(f"写入系统 cron 文件: {SINGBOX_AUTO_UPDATE_CRON_FILE}")
-        cron_line = f"{SINGBOX_AUTO_UPDATE_CRON}\n"
-        with open(SINGBOX_AUTO_UPDATE_CRON_FILE, "w", encoding="utf-8") as f:
-            f.write(cron_line)
-        os.chmod(SINGBOX_AUTO_UPDATE_CRON_FILE, 0o644)
-
-
 def ensure_singbox():
     installed_version = get_singbox_version()
-    if singbox_installed() and singbox_runnable():
-        ui.success(f"sing-box 已存在 (当前版本: {installed_version or 'unknown'})")
+    if singbox_installed() and singbox_runnable() and installed_version == SINGBOX_VERSION:
+        ui.success("sing-box 已存在")
         ensure_singbox_service()
         return
 
-    if singbox_installed():
+    if singbox_installed() and installed_version and installed_version != SINGBOX_VERSION:
+        ui.warning(
+            f"检测到 sing-box 当前版本为 {installed_version}，"
+            f"将切换到固定版本 {SINGBOX_VERSION}"
+        )
+    elif singbox_installed():
         ui.warning("检测到 sing-box 二进制存在但不可执行，尝试重新安装")
 
-    try:
-        target_version = get_latest_singbox_version()
-    except RuntimeError:
-        target_version = SINGBOX_VERSION
-        ui.warning(f"获取最新版本失败，回退安装预置版本: v{target_version}")
-
-    ui.step(f"安装 sing-box v{target_version}")
-    install_singbox_version(target_version)
+    ui.step(f"安装 sing-box {SINGBOX_RELEASE_TAG}")
+    install_singbox_pinned()
     installed_version = get_singbox_version()
-    if not singbox_installed() or not singbox_runnable():
+    if not singbox_installed() or not singbox_runnable() or installed_version != SINGBOX_VERSION:
         binary_path = resolve_singbox_path() or "(missing)"
         raise RuntimeError(
-            f"sing-box 安装后不可执行: {binary_path}\n"
-            f"当前版本: {installed_version or '(unknown)'}"
+            f"sing-box 安装后版本异常或不可执行: {binary_path}\n"
+            f"期望版本: {SINGBOX_VERSION}，当前版本: {installed_version or '(unknown)'}"
         )
     ensure_singbox_service()
 
