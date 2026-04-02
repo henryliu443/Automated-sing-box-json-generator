@@ -135,14 +135,11 @@ def deploy(domain_root=None, enabled_protocols=None):
     # CF credentials are always required (DNS record management + optional TLS)
     cf_token, cf_zone_id = resolve_cf_dns_credentials()
 
-    # Reuse existing prefixes from state, or generate fresh random ones
+    # Always generate fresh random prefixes — never reuse old ones.
+    # sync_dns_records will clean up stale A records from previous deploys.
     old_state = state_mod.load_state()
-    if old_state and old_state.get("subdomain_prefixes"):
-        prefixes = old_state["subdomain_prefixes"]
-        ui.info("复用已有的随机子域名前缀")
-    else:
-        prefixes = gen_subdomain_prefixes()
-        ui.info("已生成新的随机子域名前缀")
+    prefixes = gen_subdomain_prefixes()
+    ui.info("已生成全新的随机子域名前缀")
 
     phosts = build_protocol_hosts(domain_root, prefixes)
     pports = protocol_ports(enabled_protocols)
