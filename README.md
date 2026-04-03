@@ -84,7 +84,7 @@ python3 main.py config --protocols hy2
 | 模式 | 未匹配流量 | DNS（未匹配域名） | 推荐场景 |
 |------|-----------|-------------------|---------|
 | **route**（默认） | 直连 | 1.1.1.1 DoH via 代理 | 日常使用，规则分流 |
-| **global** | 走代理节点 | 1.1.1.1 DoH via 代理 | 需要全局翻墙、测试连通性 |
+| **global** | 走代理节点（含 direct 规则） | 1.1.1.1 DoH via 代理 | 需要全局翻墙、测试连通性 |
 | **direct** | 直连 | 1.1.1.1 DoH via 代理 | 临时关闭代理、排查网络问题 |
 
 三层结构：
@@ -99,7 +99,7 @@ route-mode (selector)          ← route.final 指向这里
 └── direct  (direct)           ← 全部直连
 ```
 
-> **注意**：显式匹配的路由规则（如 PROXY_SUFFIX / DIRECT_SUFFIX）在所有模式下始终生效，`route-mode` 仅控制**未被规则命中**的流量去向。
+> **注意**：切到 `global` 时，分流规则的结果会收敛到代理出口（等价全局代理）；仅保留私网地址直连以保证局域网访问稳定。
 
 **排查指南**：
 
@@ -108,7 +108,7 @@ route-mode (selector)          ← route.final 指向这里
 | 全局模式下某些网站打不开 | 切到 `global` → 确认 `proxy-auto` 已选中且测速通过；若节点全挂，在 `global` 里手动切到 `route` 兜底 |
 | 规则模式下国内网站走了代理 | 检查 `rules.json` 的 `direct_suffix` 是否包含该域名，或确认 GEOSITE-CN 规则集已下载 |
 | DNS 解析慢 | DNS final 为 `dns-remote`（1.1.1.1 DoH via 代理），若代理延迟高会影响首次解析；已匹配的国内域名走 `dns-direct`（223.5.5.5）不受影响 |
-| 想临时绕过所有代理 | 切 `route-mode` → `direct`，显式 proxy 规则仍生效但 final 走直连 |
+| 想临时绕过大部分代理 | 切 `route-mode` → `direct`；显式 proxy 规则仍生效 |
 
 ### DNS 记录自动管理
 

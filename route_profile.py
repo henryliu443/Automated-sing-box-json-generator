@@ -45,6 +45,9 @@ IGNORED_RULES = [
 ]
 
 ROUTE_FINAL = "route-mode"
+# Direct rule targets follow route-mode so switching to `global` can truly
+# proxy domains listed in direct_* buckets (e.g. baidu.com).
+DIRECT_RULE_OUTBOUND = ROUTE_FINAL
 USE_GEOIP_CN = True
 
 
@@ -131,19 +134,19 @@ def build_route_config(sniff_inbound=None):
     direct_suffix = _merge_unique(SKIP_PROXY_SUFFIXES, DIRECT_SUFFIX)
 
     if direct_exact:
-        rules.append({"domain": direct_exact, "action": "route", "outbound": "direct"})
+        rules.append({"domain": direct_exact, "action": "route", "outbound": DIRECT_RULE_OUTBOUND})
     if PROXY_EXACT:
         rules.append({"domain": PROXY_EXACT, "action": "route", "outbound": "global"})
     if direct_suffix:
-        rules.append({"domain_suffix": direct_suffix, "action": "route", "outbound": "direct"})
+        rules.append({"domain_suffix": direct_suffix, "action": "route", "outbound": DIRECT_RULE_OUTBOUND})
     if PROXY_SUFFIX:
         rules.append({"domain_suffix": PROXY_SUFFIX, "action": "route", "outbound": "global"})
     if DIRECT_KEYWORD:
-        rules.append({"domain_keyword": DIRECT_KEYWORD, "action": "route", "outbound": "direct"})
+        rules.append({"domain_keyword": DIRECT_KEYWORD, "action": "route", "outbound": DIRECT_RULE_OUTBOUND})
     if PROXY_KEYWORD:
         rules.append({"domain_keyword": PROXY_KEYWORD, "action": "route", "outbound": "global"})
     if DIRECT_CIDR:
-        rules.append({"ip_cidr": DIRECT_CIDR, "action": "route", "outbound": "direct"})
+        rules.append({"ip_cidr": DIRECT_CIDR, "action": "route", "outbound": DIRECT_RULE_OUTBOUND})
     if PROXY_CIDR:
         rules.append({"ip_cidr": PROXY_CIDR, "action": "route", "outbound": "global"})
 
@@ -172,10 +175,10 @@ def build_route_config(sniff_inbound=None):
             },
         ]
         route["rules"].append(
-            {"rule_set": "geosite-cn", "action": "route", "outbound": "direct"}
+            {"rule_set": "geosite-cn", "action": "route", "outbound": DIRECT_RULE_OUTBOUND}
         )
         route["rules"].append(
-            {"rule_set": "geoip-cn", "action": "route", "outbound": "direct"}
+            {"rule_set": "geoip-cn", "action": "route", "outbound": DIRECT_RULE_OUTBOUND}
         )
 
     return route
