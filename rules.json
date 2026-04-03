@@ -20,7 +20,10 @@
     "openaicom-api-bdcpf8c6d2e9atf6.z01.azurefd.net",
     "openaicomproductionae4b.blob.core.windows.net",
     "production-openaicom-storage.azureedge.net",
-    "static.cloudflareinsights.com"
+    "static.cloudflareinsights.com",
+    "chatgpt.com",
+    "generativelanguage.googleapis.com",
+    "ai.google.dev"
   ],
   "direct_suffix": [
     "baidu.com",
@@ -385,6 +388,7 @@
     "line-scdn.net",
     "abc.xyz",
     "goog",
+    "googleapis.com",
     "admin.recaptcha.net",
     "ampproject.org",
     "android.com",
@@ -414,6 +418,7 @@
     "gv.com",
     "gvt0.com",
     "gvt1.com",
+    "gvt2.com",
     "gvt3.com",
     "gwtproject.org",
     "itasoftware.com",
@@ -605,6 +610,11 @@
     "127.0.0.0/8"
   ],
   "proxy_cidr": [
+    "142.250.0.0/15",
+    "142.251.0.0/16",
+    "172.217.0.0/16",
+    "172.253.0.0/16",
+    "216.239.32.0/19",
     "24.199.123.28/32",
     "45.76.214.191/32",
     "64.23.132.171/32",
