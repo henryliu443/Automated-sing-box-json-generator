@@ -16,6 +16,7 @@ CLIENT_PROXY_AUTO_TAG = "proxy-auto"
 CLIENT_ROUTE_MODE_TAG = "route-mode"
 CLIENT_ROUTE_TAG = "route"
 URLTEST_URL = "https://cp.cloudflare.com/generate_204"
+CLIENT_TUN_ADDRESS = "198.18.0.1/16"
 
 SERVER_DNS_SERVERS = ("1.1.1.1", "1.0.0.1")
 SERVER_DNS_TAG = "dns-server"
@@ -376,7 +377,8 @@ def build_client_config(creds, protocol_hosts=None, enabled_protocols=None):
             {
                 "type": "tun",
                 "tag": CLIENT_TUN_INBOUND_TAG,
-                "address": "172.19.0.1/30",
+                # Use a benchmark-only range to reduce conflicts on Android.
+                "address": CLIENT_TUN_ADDRESS,
                 "auto_route": True,
                 "strict_route": True,
                 "route_exclude_address": TUN_EXCLUDED_ROUTES,
