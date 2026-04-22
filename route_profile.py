@@ -27,11 +27,11 @@ SKIP_PROXY_SUFFIXES = ["local"]
 DNS_DIRECT_ONLY_DOMAINS = ["cp.cloudflare.com"]
 DNS_DIRECT_ONLY_SUFFIXES = ["in-addr.arpa", "ip6.arpa"]
 TUN_EXCLUDED_ROUTES = [
-    # Keep this list Android-safe: private/link-local/loopback only.
+    # Android VpnService automatically excludes loopback (127.0.0.0/8) and
+    # link-local (169.254.0.0/16). Attempting to exclude them explicitly
+    # triggers "configure tun interface: Bad address". See sing-box #2030.
     "10.0.0.0/8",
     "100.64.0.0/10",
-    "127.0.0.0/8",
-    "169.254.0.0/16",
     "172.16.0.0/12",
     "192.168.0.0/16",
 ]
