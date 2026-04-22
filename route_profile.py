@@ -27,8 +27,13 @@ SKIP_PROXY_SUFFIXES = ["local"]
 DNS_DIRECT_ONLY_DOMAINS = ["cp.cloudflare.com"]
 DNS_DIRECT_ONLY_SUFFIXES = ["in-addr.arpa", "ip6.arpa"]
 TUN_EXCLUDED_ROUTES = [
-    "10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8", "169.254.0.0/16", "172.16.0.0/12", "192.0.0.0/24", "192.0.2.0/24", "192.88.99.0/24",
-    "192.168.0.0/16", "198.51.100.0/24", "203.0.113.0/24", "224.0.0.0/4", "255.255.255.255/32", "239.255.255.250/32",
+    # Keep this list Android-safe: private/link-local/loopback only.
+    "10.0.0.0/8",
+    "100.64.0.0/10",
+    "127.0.0.0/8",
+    "169.254.0.0/16",
+    "172.16.0.0/12",
+    "192.168.0.0/16",
 ]
 
 DIRECT_EXACT   = _rules["direct_exact"]
