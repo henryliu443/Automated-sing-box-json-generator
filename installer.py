@@ -28,6 +28,10 @@ SYSTEM_DNS_SERVERS = ("1.1.1.1", "1.0.0.1")
 WARP_CLI_TIMEOUT = 20
 WARP_CONNECT_TIMEOUT = 30
 WARP_SERVICE_READY_TIMEOUT = 15
+SING_BOX_LISTEN_DEADLINE_SEC = 35
+SING_BOX_LISTEN_POLL_SEC = 0.5
+
+_PORT_RE_SUFFIX = r"(?!\d)"
 SINGBOX_LATEST_RELEASE_URL = "https://api.github.com/repos/SagerNet/sing-box/releases/latest"
 SINGBOX_AUTO_UPDATE_SCRIPT = "/usr/local/bin/singbox_auto_update.py"
 SINGBOX_AUTO_UPDATE_LOG = "/var/log/singbox-auto-update.log"
@@ -179,16 +183,39 @@ def ensure_ss_tool():
 
 
 def get_port_owners(port, proto):
-    flag = "-ltnp" if proto == "tcp" else "-lunp"
-    result = subprocess.run(
-        f"ss -H {flag} 'sport = :{port}'",
-        shell=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    raw = result.stdout.strip()
-    owners = set(re.findall(r'\(\("([^"]+)"', raw))
+    """List processes listening on port. Avoids ss 'sport =' filter — it often misses LISTEN rows."""
+    port = int(port)
+    if proto == "tcp":
+        ss_args = ["ss", "-Hltnp"]
+    elif proto == "udp":
+        ss_args = ["ss", "-Hlunp"]
+    else:
+        raise ValueError(f"unsupported proto: {proto}")
+
+    port_re = re.compile(rf":{port}{_PORT_RE_SUFFIX}")
+    result = subprocess.run(ss_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    out = result.stdout
+    stderr = result.stderr.strip()
+    if stderr and not out.strip():
+        return set(), stderr
+
+    matched_lines = []
+    owners = set()
+
+    for line in out.splitlines():
+        if not port_re.search(line):
+            continue
+        # `ss -Hltnp` lines look like `tcp LISTEN …` ; first column may be proto, not state.
+        if proto == "tcp" and "LISTEN" not in line:
+            continue
+        # UDP listens usually `UNCONN`; allow `ESTAB` for implementations that vary.
+        if proto == "udp" and ("UNCONN" not in line and "ESTAB" not in line):
+            continue
+        matched_lines.append(line)
+        for pname in re.findall(r'\(\("([^"]+)"', line):
+            owners.add(pname)
+
+    raw = "\n".join(matched_lines)
     return owners, raw
 
 
@@ -211,6 +238,25 @@ def assert_port_required(port, proto, required_owners):
         )
 
 
+def _wait_required_port(port, transport, allowed_owners, required_owners):
+    """After systemctl restart, sing-box may need a short time before bind is visible."""
+    assert_port_allowed(port, transport, allowed_owners)
+
+    deadline = time.time() + SING_BOX_LISTEN_DEADLINE_SEC
+    owners, raw = set(), ""
+
+    while time.time() < deadline:
+        owners, raw = get_port_owners(port, transport)
+        if owners & set(required_owners):
+            return
+        time.sleep(SING_BOX_LISTEN_POLL_SEC)
+
+    raise RuntimeError(
+        f"{transport}/{port} 未检测到预期进程监听: {sorted(required_owners)}\n"
+        f"监听明细:\n{raw or '(empty)'}"
+    )
+
+
 def print_port_snapshot():
     ui.info("当前端口监听快照 (ss -tulnp)")
     run_cmd("ss -tulnp")
@@ -221,15 +267,11 @@ def ensure_port_safety(warp_mode="proxy", protocol_ports=None):
 
     if protocol_ports is not None:
         for port, transport in protocol_ports:
-            assert_port_allowed(port, transport, {"sing-box"})
-            assert_port_required(port, transport, {"sing-box"})
+            _wait_required_port(port, transport, {"sing-box"}, {"sing-box"})
     else:
-        assert_port_allowed(23244, "tcp", {"sing-box"})
-        assert_port_allowed(7443, "udp", {"sing-box"})
-        assert_port_allowed(9443, "udp", {"sing-box"})
-        assert_port_required(23244, "tcp", {"sing-box"})
-        assert_port_required(7443, "udp", {"sing-box"})
-        assert_port_required(9443, "udp", {"sing-box"})
+        _wait_required_port(23244, "tcp", {"sing-box"}, {"sing-box"})
+        _wait_required_port(7443, "udp", {"sing-box"}, {"sing-box"})
+        _wait_required_port(9443, "udp", {"sing-box"}, {"sing-box"})
 
     if warp_mode == "proxy":
         allowed = {WARP_SERVICE, *LEGACY_WARP_SERVICES}
