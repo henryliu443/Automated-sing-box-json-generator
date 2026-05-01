@@ -21,6 +21,19 @@ CLIENT_TUN_ADDRESSES = [
     "fdfe:dcba:9876::1/126",
 ]
 
+
+def _client_tun_route_exclude(server_ip=None):
+    """TUN exclusions: private ranges plus our VPS so proxy dials are not captured by TUN."""
+    routes = list(TUN_EXCLUDED_ROUTES)
+    if not server_ip:
+        return routes
+    ip = str(server_ip).strip()
+    if not ip:
+        return routes
+    routes.append(f"{ip}/128" if ":" in ip else f"{ip}/32")
+    return routes
+
+
 SERVER_DNS_SERVERS = ("1.1.1.1", "1.0.0.1")
 SERVER_DNS_TAG = "dns-server"
 
@@ -361,7 +374,7 @@ def build_server_config(creds, protocol_hosts=None, warp_mode="proxy", enabled_p
     }
 
 
-def build_client_config(creds, protocol_hosts=None, enabled_protocols=None):
+def build_client_config(creds, protocol_hosts=None, enabled_protocols=None, server_ip=None):
     if not protocol_hosts:
         raise ValueError("protocol_hosts is required")
     if enabled_protocols is None:
@@ -384,7 +397,7 @@ def build_client_config(creds, protocol_hosts=None, enabled_protocols=None):
                 "address": CLIENT_TUN_ADDRESSES,
                 "auto_route": True,
                 "strict_route": True,
-                "route_exclude_address": TUN_EXCLUDED_ROUTES,
+                "route_exclude_address": _client_tun_route_exclude(server_ip),
                 "stack": "system",
             }
         ],

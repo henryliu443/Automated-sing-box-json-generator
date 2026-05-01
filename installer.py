@@ -222,10 +222,14 @@ def ensure_port_safety(warp_mode="proxy", protocol_ports=None):
     if protocol_ports is not None:
         for port, transport in protocol_ports:
             assert_port_allowed(port, transport, {"sing-box"})
+            assert_port_required(port, transport, {"sing-box"})
     else:
         assert_port_allowed(23244, "tcp", {"sing-box"})
         assert_port_allowed(7443, "udp", {"sing-box"})
         assert_port_allowed(9443, "udp", {"sing-box"})
+        assert_port_required(23244, "tcp", {"sing-box"})
+        assert_port_required(7443, "udp", {"sing-box"})
+        assert_port_required(9443, "udp", {"sing-box"})
 
     if warp_mode == "proxy":
         allowed = {WARP_SERVICE, *LEGACY_WARP_SERVICES}
