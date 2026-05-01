@@ -172,7 +172,10 @@ def deploy(domain_root=None, enabled_protocols=None):
         creds, phosts, warp_mode=warp_mode, enabled_protocols=enabled_protocols,
     )
     client_config = build_client_config(
-        creds, protocol_hosts=phosts, enabled_protocols=enabled_protocols,
+        creds,
+        protocol_hosts=phosts,
+        enabled_protocols=enabled_protocols,
+        server_ip=server_ip,
     )
 
     ui.step(f"写入服务端配置: {SING_BOX_CONFIG_PATH}")
@@ -233,7 +236,10 @@ def reconfigure(enabled_protocols=None):
         creds, phosts, warp_mode=warp_mode, enabled_protocols=enabled_protocols,
     )
     client_config = build_client_config(
-        creds, protocol_hosts=phosts, enabled_protocols=enabled_protocols,
+        creds,
+        protocol_hosts=phosts,
+        enabled_protocols=enabled_protocols,
+        server_ip=loaded.get("server_ip"),
     )
 
     ui.step(f"写入服务端配置: {SING_BOX_CONFIG_PATH}")

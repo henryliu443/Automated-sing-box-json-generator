@@ -70,7 +70,12 @@ def export_json(output=None):
     hosts = data["protocol_hosts"]
     protocols = data["enabled_protocols"]
 
-    client_cfg = build_client_config(creds, protocol_hosts=hosts, enabled_protocols=protocols)
+    client_cfg = build_client_config(
+        creds,
+        protocol_hosts=hosts,
+        enabled_protocols=protocols,
+        server_ip=data.get("server_ip"),
+    )
     text = json.dumps(client_cfg, indent=2, ensure_ascii=False)
 
     if output:
