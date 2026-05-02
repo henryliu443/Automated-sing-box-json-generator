@@ -19,6 +19,7 @@ for _key in _REQUIRED_BUCKETS:
 DNS_DIRECT_SERVER = "223.5.5.5"
 DNS_REMOTE_SERVER = "1.1.1.1"
 DNS_REMOTE_PATH = "/dns-query"
+DNS_REMOTE_TLS_SERVER_NAME = "cloudflare-dns.com"
 GEOIP_CN_RULESET_URL = "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geoip/cn.srs"
 GEOSITE_CN_RULESET_URL = "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/cn.srs"
 
@@ -111,6 +112,11 @@ def build_dns_config(hosts):
                 "tag": "dns-remote",
                 "server": DNS_REMOTE_SERVER,
                 "path": DNS_REMOTE_PATH,
+                "tls": {
+                    "enabled": True,
+                    "server_name": DNS_REMOTE_TLS_SERVER_NAME,
+                    "alpn": ["h2", "http/1.1"],
+                },
                 "detour": "global",
                 "domain_resolver": "dns-direct",
             },

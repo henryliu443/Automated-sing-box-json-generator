@@ -696,7 +696,10 @@ def ensure_singbox_service():
     run_cmd(f"systemctl enable {SINGBOX_SERVICE}")
 
 
-def ensure_warp():
+def ensure_warp(preferred_mode=None):
+    if preferred_mode not in (None, "proxy", "tun"):
+        raise RuntimeError(f"不支持的 WARP 模式: {preferred_mode}")
+
     if warp_proxy_ready():
         ui.success("检测到 WARP 本地代理模式 (127.0.0.1:40000)")
         return "proxy"
@@ -706,10 +709,14 @@ def ensure_warp():
         return "tun"
 
     ui.step("安装 WARP")
-    configure_warpsvc_proxy()
+    target_mode = preferred_mode or "proxy"
+    if target_mode == "tun":
+        configure_warpsvc_tunnel()
+    else:
+        configure_warpsvc_proxy()
 
-    ui.step("验证 WARP 本地代理是否已经就绪")
-    mode = wait_for_warp_mode(preferred_mode="proxy")
+    ui.step("验证 WARP 模式是否已经就绪")
+    mode = wait_for_warp_mode(preferred_mode=target_mode)
     if mode == "proxy":
         ui.success("WARP 安装完成，当前使用本地代理模式")
         return "proxy"
@@ -903,11 +910,11 @@ def ensure_singbox():
     ensure_singbox_service()
 
 
-def ensure_dependencies(protocol_ports=None):
+def ensure_dependencies(protocol_ports=None, preferred_warp_mode=None):
     require_root()
     ensure_system_cloudflare_dns()
     ensure_ss_tool()
-    warp_mode = ensure_warp()
+    warp_mode = ensure_warp(preferred_mode=preferred_warp_mode)
     ensure_singbox()
     ensure_port_safety(warp_mode, protocol_ports)
     print_port_snapshot()
