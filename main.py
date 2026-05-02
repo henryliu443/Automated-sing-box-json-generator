@@ -84,17 +84,25 @@ def _parse_protocols(value):
 
 def cmd_deploy(args):
     deploy = importlib.import_module("deploy")
+    cfg = importlib.import_module("config")
     protocols = _parse_protocols(args.protocols) if args.protocols else None
     domain = args.domain or None
+    fingerprint_overrides = {}
     if args.reality_server:
-        os.environ["REALITY_SERVER"] = args.reality_server
+        fingerprint_overrides[cfg.REALITY_SERVER_ENV] = args.reality_server
     if args.reality_port is not None:
-        os.environ["REALITY_PORT"] = str(args.reality_port)
+        fingerprint_overrides[cfg.REALITY_PORT_ENV] = str(args.reality_port)
     if args.hy2_masquerade:
-        os.environ["HY2_MASQUERADE"] = args.hy2_masquerade
+        fingerprint_overrides[cfg.HY2_MASQUERADE_ENV] = args.hy2_masquerade
     if args.server_ip:
         os.environ["SERVER_IP"] = args.server_ip
-    raise SystemExit(deploy.main(enabled_protocols=protocols, domain_root=domain))
+    raise SystemExit(
+        deploy.main(
+            enabled_protocols=protocols,
+            domain_root=domain,
+            fingerprint_overrides=fingerprint_overrides or None,
+        )
+    )
 
 
 def cmd_install(args):
