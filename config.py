@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 
 from route_profile import TUN_EXCLUDED_ROUTES, build_dns_config, build_route_config
 
@@ -6,6 +7,43 @@ from route_profile import TUN_EXCLUDED_ROUTES, build_dns_config, build_route_con
 REALITY_SERVER_ENV = "REALITY_SERVER"
 REALITY_PORT_ENV = "REALITY_PORT"
 HY2_MASQUERADE_ENV = "HY2_MASQUERADE"
+
+_fingerprint_injection: Optional[dict[str, str]] = None
+
+
+def set_fingerprint_injection(data: Optional[dict]) -> None:
+    """Apply runtime fingerprint values (typically from deployment state).
+
+    Overrides process environment for Reality / HY2 masquerade resolution so server
+    and client generation do not rely on sharing the same *env*."""
+    global _fingerprint_injection
+    if not data:
+        _fingerprint_injection = None
+        return
+    cleaned = {}
+    for key, raw in data.items():
+        if raw is None:
+            continue
+        s = str(raw).strip()
+        if s:
+            cleaned[str(key)] = s
+    _fingerprint_injection = cleaned or None
+
+
+def clear_fingerprint_injection() -> None:
+    global _fingerprint_injection
+    _fingerprint_injection = None
+
+
+def _fingerprint_lookup(env_key: str) -> Optional[str]:
+    if not _fingerprint_injection:
+        return None
+    value = _fingerprint_injection.get(env_key)
+    if value is None:
+        return None
+    s = str(value).strip()
+    return s or None
+
 
 TUIC_CERT_PATH = "/etc/sing-box-tuic/certs/tuic.crt"
 TUIC_KEY_PATH = "/etc/sing-box-tuic/certs/tuic.key"
@@ -40,11 +78,15 @@ SERVER_DNS_SERVERS = ("1.1.1.1", "1.0.0.1")
 SERVER_DNS_TAG = "dns-server"
 
 def get_reality_decoy_server():
+    injected = _fingerprint_lookup(REALITY_SERVER_ENV)
+    if injected is not None:
+        return injected
     return os.getenv(REALITY_SERVER_ENV, "www.cloudflare.com").strip() or "www.cloudflare.com"
 
 
 def get_reality_decoy_port():
-    raw = os.getenv(REALITY_PORT_ENV, "443").strip()
+    injected = _fingerprint_lookup(REALITY_PORT_ENV)
+    raw = injected if injected is not None else os.getenv(REALITY_PORT_ENV, "443").strip()
     try:
         return int(raw)
     except ValueError:
@@ -52,6 +94,9 @@ def get_reality_decoy_port():
 
 
 def get_hy2_masquerade_url():
+    injected = _fingerprint_lookup(HY2_MASQUERADE_ENV)
+    if injected is not None:
+        return injected
     return os.getenv(HY2_MASQUERADE_ENV, "https://www.cloudflare.com").strip() or "https://www.cloudflare.com"
 
 

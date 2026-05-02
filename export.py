@@ -1,39 +1,17 @@
 import json
-import os
 import sys
 from urllib.parse import urlencode
 
 import cli_ui as ui
 from config import (
     ALL_PROTOCOLS,
-    HY2_MASQUERADE_ENV,
     PROTOCOL_DEFS,
-    REALITY_PORT_ENV,
-    REALITY_SERVER_ENV,
     build_client_config,
+    clear_fingerprint_injection,
     get_reality_decoy_server,
+    set_fingerprint_injection,
 )
 from state import load_state
-
-
-ANTI_DETECTION_STATE_KEYS = (
-    REALITY_SERVER_ENV,
-    REALITY_PORT_ENV,
-    HY2_MASQUERADE_ENV,
-)
-
-
-def _hydrate_env_from_state(data):
-    anti_detection = data.get("anti_detection") or {}
-    for key in ANTI_DETECTION_STATE_KEYS:
-        if os.environ.get(key):
-            continue
-        raw = anti_detection.get(key)
-        if raw is None:
-            continue
-        value = str(raw).strip()
-        if value:
-            os.environ[key] = value
 
 
 def _require_state():
@@ -90,66 +68,75 @@ _LINK_BUILDERS = {
 
 def export_json(output=None):
     data = _require_state()
-    _hydrate_env_from_state(data)
-    creds = data["credentials"]
-    hosts = data["protocol_hosts"]
-    protocols = data["enabled_protocols"]
+    set_fingerprint_injection(data.get("anti_detection"))
+    try:
+        creds = data["credentials"]
+        hosts = data["protocol_hosts"]
+        protocols = data["enabled_protocols"]
 
-    client_cfg = build_client_config(
-        creds,
-        protocol_hosts=hosts,
-        enabled_protocols=protocols,
-        server_ip=data.get("server_ip"),
-    )
-    text = json.dumps(client_cfg, indent=2, ensure_ascii=False)
+        client_cfg = build_client_config(
+            creds,
+            protocol_hosts=hosts,
+            enabled_protocols=protocols,
+            server_ip=data.get("server_ip"),
+        )
+        text = json.dumps(client_cfg, indent=2, ensure_ascii=False)
 
-    if output:
-        with open(output, "w", encoding="utf-8") as f:
-            f.write(text + "\n")
-        ui.success(f"客户端配置已写入: {output}")
-    else:
-        print(text)
+        if output:
+            with open(output, "w", encoding="utf-8") as f:
+                f.write(text + "\n")
+            ui.success(f"客户端配置已写入: {output}")
+        else:
+            print(text)
+    finally:
+        clear_fingerprint_injection()
 
 
 def export_links():
     data = _require_state()
-    _hydrate_env_from_state(data)
-    creds = data["credentials"]
-    hosts = data["protocol_hosts"]
-    protocols = data["enabled_protocols"]
+    set_fingerprint_injection(data.get("anti_detection"))
+    try:
+        creds = data["credentials"]
+        hosts = data["protocol_hosts"]
+        protocols = data["enabled_protocols"]
 
-    for proto in protocols:
-        builder = _LINK_BUILDERS.get(proto)
-        if builder:
-            link = builder(creds, hosts)
-            ui.kv(proto, link)
+        for proto in protocols:
+            builder = _LINK_BUILDERS.get(proto)
+            if builder:
+                link = builder(creds, hosts)
+                ui.kv(proto, link)
+    finally:
+        clear_fingerprint_injection()
 
 
 def export_qr():
     data = _require_state()
-    _hydrate_env_from_state(data)
-    creds = data["credentials"]
-    hosts = data["protocol_hosts"]
-    protocols = data["enabled_protocols"]
-
+    set_fingerprint_injection(data.get("anti_detection"))
     try:
-        import qrcode
-    except ImportError:
-        ui.error("需要安装 qrcode 库: pip3 install qrcode")
-        export_links()
-        return
+        creds = data["credentials"]
+        hosts = data["protocol_hosts"]
+        protocols = data["enabled_protocols"]
 
-    for proto in protocols:
-        builder = _LINK_BUILDERS.get(proto)
-        if not builder:
-            continue
-        link = builder(creds, hosts)
-        ui.section(f"{proto} 分享二维码")
-        qr = qrcode.QRCode(box_size=1, border=1)
-        qr.add_data(link)
-        qr.make(fit=True)
-        qr.print_ascii(out=sys.stdout, invert=True)
-        print(link)
+        try:
+            import qrcode
+        except ImportError:
+            ui.error("需要安装 qrcode 库: pip3 install qrcode")
+            export_links()
+            return
+
+        for proto in protocols:
+            builder = _LINK_BUILDERS.get(proto)
+            if not builder:
+                continue
+            link = builder(creds, hosts)
+            ui.section(f"{proto} 分享二维码")
+            qr = qrcode.QRCode(box_size=1, border=1)
+            qr.add_data(link)
+            qr.make(fit=True)
+            qr.print_ascii(out=sys.stdout, invert=True)
+            print(link)
+    finally:
+        clear_fingerprint_injection()
 
 
 def export_client_config(fmt="json", output=None):

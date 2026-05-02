@@ -2,7 +2,7 @@ import json
 import os
 import re
 import subprocess
-from typing import Any
+from typing import Any, Optional
 
 from certs import ensure_tls_certificates, needs_tls_certificates
 from cloudflare_dns import cleanup_all_managed_records, detect_public_ipv4, sync_dns_records
@@ -16,8 +16,10 @@ from config import (
     build_client_config,
     build_protocol_hosts,
     build_server_config,
+    clear_fingerprint_injection,
     get_reality_decoy_server,
     protocol_ports,
+    set_fingerprint_injection,
 )
 from credentials import gen_subdomain_prefixes, generate_credentials
 from installer import ensure_dependencies, ensure_port_safety, print_port_snapshot
@@ -32,11 +34,18 @@ CF_ZONE_ID_ENV = "CF_Zone_ID"
 SING_BOX_CONFIG_PATH = "/etc/sing-box/config.json"
 WATCHDOG_SCRIPT_PATH = "/root/warp_lazy_watchdog.sh"
 SERVER_IP_ENV = "SERVER_IP"
-ANTI_DETECTION_STATE_KEYS = (
-    REALITY_SERVER_ENV,
-    REALITY_PORT_ENV,
-    HY2_MASQUERADE_ENV,
-)
+def _merge_fingerprint_overrides(
+    base: dict[str, str], overrides: Optional[dict[str, str]],
+):
+    """CLI / caller overrides win; *base* usually comes from prompts or prior state."""
+    if not overrides:
+        return dict(base)
+    out = dict(base)
+    for key in (REALITY_SERVER_ENV, REALITY_PORT_ENV, HY2_MASQUERADE_ENV):
+        v = overrides.get(key)
+        if v is not None and str(v).strip():
+            out[key] = str(v).strip()
+    return out
 
 
 def normalize_domain_input(raw):
@@ -125,7 +134,6 @@ def _prompt_env_if_empty(label, env_name, default_value):
         return existing
     raw = ui.prompt(f"{label} (默认: {default_value})", env_name=env_name).strip()
     if raw:
-        os.environ[env_name] = raw
         return raw
     return default_value
 
@@ -151,18 +159,6 @@ def prompt_protocol_specific_inputs(enabled_protocols):
             "https://www.cloudflare.com",
         )
     return captured
-
-
-def hydrate_protocol_env_from_state(loaded):
-    if not loaded:
-        return
-    anti_detection = loaded.get("anti_detection") or {}
-    for key in ANTI_DETECTION_STATE_KEYS:
-        if os.environ.get(key):
-            continue
-        value = _normalize_optional_input(anti_detection.get(key))
-        if value:
-            os.environ[key] = value
 
 
 def write_server_config(server_config: dict[str, Any]):
@@ -208,12 +204,15 @@ def _desired_fqdns(phosts, enabled_protocols):
     return fqdns
 
 
-def deploy(domain_root=None, enabled_protocols=None):
+def deploy(domain_root=None, enabled_protocols=None, fingerprint_overrides=None):
     if domain_root is None:
         domain_root = prompt_domain_root()
     if enabled_protocols is None:
         enabled_protocols = prompt_protocols()
-    protocol_inputs = prompt_protocol_specific_inputs(enabled_protocols)
+    protocol_inputs = _merge_fingerprint_overrides(
+        prompt_protocol_specific_inputs(enabled_protocols),
+        fingerprint_overrides,
+    )
     preferred_warp_mode = prompt_warp_mode()
 
     # CF credentials are always required (DNS record management + optional TLS)
@@ -251,46 +250,50 @@ def deploy(domain_root=None, enabled_protocols=None):
 
     ui.section("配置生成")
     ui.step("生成服务端和客户端配置")
-    creds = generate_credentials()
-    server_config = build_server_config(
-        creds, phosts, warp_mode=warp_mode, enabled_protocols=enabled_protocols,
-    )
-    client_config = build_client_config(
-        creds,
-        protocol_hosts=phosts,
-        enabled_protocols=enabled_protocols,
-        server_ip=server_ip,
-    )
-    ui.section("抗识别优化")
-    ui.success("Reality fingerprint alignment")
-    ui.success("QUIC behavior normalization")
-    if "hy2" in enabled_protocols:
-        ui.success("Bandwidth shaping (hy2)")
-    ui.success("Protocol-aware parameter injection")
+    set_fingerprint_injection(protocol_inputs)
+    try:
+        creds = generate_credentials()
+        server_config = build_server_config(
+            creds, phosts, warp_mode=warp_mode, enabled_protocols=enabled_protocols,
+        )
+        client_config = build_client_config(
+            creds,
+            protocol_hosts=phosts,
+            enabled_protocols=enabled_protocols,
+            server_ip=server_ip,
+        )
+        ui.section("抗识别优化")
+        ui.success("Reality fingerprint alignment")
+        ui.success("QUIC behavior normalization")
+        if "hy2" in enabled_protocols:
+            ui.success("Bandwidth shaping (hy2)")
+        ui.success("Protocol-aware parameter injection")
 
-    ui.step(f"写入服务端配置: {SING_BOX_CONFIG_PATH}")
-    write_server_config(server_config)
+        ui.step(f"写入服务端配置: {SING_BOX_CONFIG_PATH}")
+        write_server_config(server_config)
 
-    ui.section("保存部署状态")
-    state_mod.save_state({
-        "domain_root": domain_root,
-        "subdomain_prefixes": prefixes,
-        "protocol_hosts": phosts,
-        "enabled_protocols": enabled_protocols,
-        "credentials": creds,
-        "warp_mode": warp_mode,
-        "server_ip": server_ip,
-        "dns_record_ids": dns_record_ids,
-        "anti_detection": protocol_inputs,
-        "preferred_warp_mode": preferred_warp_mode,
-    })
-    ui.success("部署状态已保存")
+        ui.section("保存部署状态")
+        state_mod.save_state({
+            "domain_root": domain_root,
+            "subdomain_prefixes": prefixes,
+            "protocol_hosts": phosts,
+            "enabled_protocols": enabled_protocols,
+            "credentials": creds,
+            "warp_mode": warp_mode,
+            "server_ip": server_ip,
+            "dns_record_ids": dns_record_ids,
+            "anti_detection": protocol_inputs,
+            "preferred_warp_mode": preferred_warp_mode,
+        })
+        ui.success("部署状态已保存")
 
-    ui.section("守护任务")
-    ui.step(f"部署 watchdog: {WATCHDOG_SCRIPT_PATH}")
-    deploy_watchdog(WATCHDOG_SCRIPT_PATH, warp_mode=warp_mode)
-    restart_services_and_verify(warp_mode, pports)
-    print_success_result(client_config, phosts, warp_mode, enabled_protocols)
+        ui.section("守护任务")
+        ui.step(f"部署 watchdog: {WATCHDOG_SCRIPT_PATH}")
+        deploy_watchdog(WATCHDOG_SCRIPT_PATH, warp_mode=warp_mode)
+        restart_services_and_verify(warp_mode, pports)
+        print_success_result(client_config, phosts, warp_mode, enabled_protocols)
+    finally:
+        clear_fingerprint_injection()
 
 
 def reconfigure(enabled_protocols=None):
@@ -298,7 +301,6 @@ def reconfigure(enabled_protocols=None):
     loaded = state_mod.load_state()
     if not loaded:
         raise RuntimeError("未找到部署状态，请先运行 deploy")
-    hydrate_protocol_env_from_state(loaded)
 
     if enabled_protocols is None:
         enabled_protocols = loaded.get("enabled_protocols", ALL_PROTOCOLS)
@@ -325,24 +327,28 @@ def reconfigure(enabled_protocols=None):
 
     ui.section("配置生成")
     ui.step("生成服务端和客户端配置")
-    server_config = build_server_config(
-        creds, phosts, warp_mode=warp_mode, enabled_protocols=enabled_protocols,
-    )
-    client_config = build_client_config(
-        creds,
-        protocol_hosts=phosts,
-        enabled_protocols=enabled_protocols,
-        server_ip=loaded.get("server_ip"),
-    )
+    set_fingerprint_injection(loaded.get("anti_detection"))
+    try:
+        server_config = build_server_config(
+            creds, phosts, warp_mode=warp_mode, enabled_protocols=enabled_protocols,
+        )
+        client_config = build_client_config(
+            creds,
+            protocol_hosts=phosts,
+            enabled_protocols=enabled_protocols,
+            server_ip=loaded.get("server_ip"),
+        )
 
-    ui.step(f"写入服务端配置: {SING_BOX_CONFIG_PATH}")
-    write_server_config(server_config)
+        ui.step(f"写入服务端配置: {SING_BOX_CONFIG_PATH}")
+        write_server_config(server_config)
 
-    loaded["enabled_protocols"] = enabled_protocols
-    state_mod.save_state(loaded)
+        loaded["enabled_protocols"] = enabled_protocols
+        state_mod.save_state(loaded)
 
-    restart_services_and_verify(warp_mode, pports)
-    print_success_result(client_config, phosts, warp_mode, enabled_protocols)
+        restart_services_and_verify(warp_mode, pports)
+        print_success_result(client_config, phosts, warp_mode, enabled_protocols)
+    finally:
+        clear_fingerprint_injection()
 
 
 def show_status():
@@ -385,11 +391,15 @@ def show_status():
         pass
 
 
-def main(enabled_protocols=None, domain_root=None):
+def main(enabled_protocols=None, domain_root=None, fingerprint_overrides=None):
     ui.banner("Sing-box & Watchdog 一键部署", "统一初始化、证书签发、配置生成与守护部署")
 
     try:
-        deploy(domain_root=domain_root, enabled_protocols=enabled_protocols)
+        deploy(
+            domain_root=domain_root,
+            enabled_protocols=enabled_protocols,
+            fingerprint_overrides=fingerprint_overrides,
+        )
     except RuntimeError as e:
         ui.error(str(e))
         return 1
