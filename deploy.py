@@ -9,11 +9,14 @@ from cloudflare_dns import cleanup_all_managed_records, detect_public_ipv4, sync
 import cli_ui as ui
 from config import (
     ALL_PROTOCOLS,
+    HY2_MASQUERADE_ENV,
     PROTOCOL_DEFS,
-    REALITY_DECOY_SERVER,
+    REALITY_PORT_ENV,
+    REALITY_SERVER_ENV,
     build_client_config,
     build_protocol_hosts,
     build_server_config,
+    get_reality_decoy_server,
     protocol_ports,
 )
 from credentials import gen_subdomain_prefixes, generate_credentials
@@ -28,6 +31,12 @@ CF_TOKEN_ENV = "CF_Token"
 CF_ZONE_ID_ENV = "CF_Zone_ID"
 SING_BOX_CONFIG_PATH = "/etc/sing-box/config.json"
 WATCHDOG_SCRIPT_PATH = "/root/warp_lazy_watchdog.sh"
+SERVER_IP_ENV = "SERVER_IP"
+ANTI_DETECTION_STATE_KEYS = (
+    REALITY_SERVER_ENV,
+    REALITY_PORT_ENV,
+    HY2_MASQUERADE_ENV,
+)
 
 
 def normalize_domain_input(raw):
@@ -83,6 +92,79 @@ def prompt_protocols():
     return ui.select_protocols(available)
 
 
+def _normalize_optional_input(raw):
+    value = (raw or "").strip()
+    return value or None
+
+
+def prompt_server_ip():
+    ui.section("服务器地址")
+    env_value = _normalize_optional_input(os.environ.get(SERVER_IP_ENV))
+    if env_value:
+        ui.info(f"使用环境变量 {SERVER_IP_ENV}: {env_value}")
+        return env_value
+    raw = ui.prompt("请输入 VPS 公网 IP (可留空自动检测)", env_name=SERVER_IP_ENV)
+    return _normalize_optional_input(raw)
+
+
+def prompt_warp_mode():
+    ui.section("WARP 模式")
+    raw = ui.prompt("请选择 WARP 模式 [proxy/tun] (默认 proxy)").strip().lower()
+    if not raw:
+        return "proxy"
+    if raw in {"proxy", "tun"}:
+        return raw
+    ui.warning(f"无效模式 {raw}，将使用默认 proxy")
+    return "proxy"
+
+
+def _prompt_env_if_empty(label, env_name, default_value):
+    existing = _normalize_optional_input(os.environ.get(env_name))
+    if existing:
+        ui.info(f"使用环境变量 {env_name}")
+        return existing
+    raw = ui.prompt(f"{label} (默认: {default_value})", env_name=env_name).strip()
+    if raw:
+        os.environ[env_name] = raw
+        return raw
+    return default_value
+
+
+def prompt_protocol_specific_inputs(enabled_protocols):
+    ui.section("协议参数")
+    captured = {}
+    if "anytls" in enabled_protocols:
+        captured[REALITY_SERVER_ENV] = _prompt_env_if_empty(
+            "Reality server",
+            REALITY_SERVER_ENV,
+            "www.cloudflare.com",
+        )
+        captured[REALITY_PORT_ENV] = _prompt_env_if_empty(
+            "Reality port",
+            REALITY_PORT_ENV,
+            "443",
+        )
+    if "hy2" in enabled_protocols:
+        captured[HY2_MASQUERADE_ENV] = _prompt_env_if_empty(
+            "Hysteria2 masquerade URL",
+            HY2_MASQUERADE_ENV,
+            "https://www.cloudflare.com",
+        )
+    return captured
+
+
+def hydrate_protocol_env_from_state(loaded):
+    if not loaded:
+        return
+    anti_detection = loaded.get("anti_detection") or {}
+    for key in ANTI_DETECTION_STATE_KEYS:
+        if os.environ.get(key):
+            continue
+        value = _normalize_optional_input(anti_detection.get(key))
+        if value:
+            os.environ[key] = value
+
+
 def write_server_config(server_config: dict[str, Any]):
     os.makedirs(os.path.dirname(SING_BOX_CONFIG_PATH), mode=0o700, exist_ok=True)
     fd = os.open(SING_BOX_CONFIG_PATH, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
@@ -111,7 +193,7 @@ def print_success_result(client_config, protocol_hosts, warp_mode, enabled_proto
     for proto in enabled_protocols:
         host_key = PROTOCOL_DEFS[proto]["host_key"]
         ui.kv(proto, protocol_hosts[host_key])
-    ui.kv("reality decoy", REALITY_DECOY_SERVER)
+    ui.kv("reality decoy", get_reality_decoy_server())
     print_port_snapshot()
     ui.json_block("客户端 JSON", client_config)
 
@@ -131,6 +213,8 @@ def deploy(domain_root=None, enabled_protocols=None):
         domain_root = prompt_domain_root()
     if enabled_protocols is None:
         enabled_protocols = prompt_protocols()
+    protocol_inputs = prompt_protocol_specific_inputs(enabled_protocols)
+    preferred_warp_mode = prompt_warp_mode()
 
     # CF credentials are always required (DNS record management + optional TLS)
     cf_token, cf_zone_id = resolve_cf_dns_credentials()
@@ -146,7 +230,7 @@ def deploy(domain_root=None, enabled_protocols=None):
 
     # Detect server public IP and sync Cloudflare DNS records
     ui.section("DNS 记录同步")
-    server_ip = detect_public_ipv4()
+    server_ip = prompt_server_ip() or detect_public_ipv4()
     ui.kv("服务器公网 IP", server_ip)
     old_record_ids = old_state.get("dns_record_ids") if old_state else None
     dns_record_ids = sync_dns_records(
@@ -156,7 +240,7 @@ def deploy(domain_root=None, enabled_protocols=None):
     )
 
     ui.section("依赖检查")
-    warp_mode = ensure_dependencies(pports)
+    warp_mode = ensure_dependencies(pports, preferred_warp_mode=preferred_warp_mode)
 
     need_certs = needs_tls_certificates(enabled_protocols)
     if need_certs:
@@ -177,6 +261,12 @@ def deploy(domain_root=None, enabled_protocols=None):
         enabled_protocols=enabled_protocols,
         server_ip=server_ip,
     )
+    ui.section("抗识别优化")
+    ui.success("Reality fingerprint alignment")
+    ui.success("QUIC behavior normalization")
+    if "hy2" in enabled_protocols:
+        ui.success("Bandwidth shaping (hy2)")
+    ui.success("Protocol-aware parameter injection")
 
     ui.step(f"写入服务端配置: {SING_BOX_CONFIG_PATH}")
     write_server_config(server_config)
@@ -191,6 +281,8 @@ def deploy(domain_root=None, enabled_protocols=None):
         "warp_mode": warp_mode,
         "server_ip": server_ip,
         "dns_record_ids": dns_record_ids,
+        "anti_detection": protocol_inputs,
+        "preferred_warp_mode": preferred_warp_mode,
     })
     ui.success("部署状态已保存")
 
@@ -206,6 +298,7 @@ def reconfigure(enabled_protocols=None):
     loaded = state_mod.load_state()
     if not loaded:
         raise RuntimeError("未找到部署状态，请先运行 deploy")
+    hydrate_protocol_env_from_state(loaded)
 
     if enabled_protocols is None:
         enabled_protocols = loaded.get("enabled_protocols", ALL_PROTOCOLS)

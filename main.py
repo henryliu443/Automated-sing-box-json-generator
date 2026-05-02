@@ -86,6 +86,14 @@ def cmd_deploy(args):
     deploy = importlib.import_module("deploy")
     protocols = _parse_protocols(args.protocols) if args.protocols else None
     domain = args.domain or None
+    if args.reality_server:
+        os.environ["REALITY_SERVER"] = args.reality_server
+    if args.reality_port is not None:
+        os.environ["REALITY_PORT"] = str(args.reality_port)
+    if args.hy2_masquerade:
+        os.environ["HY2_MASQUERADE"] = args.hy2_masquerade
+    if args.server_ip:
+        os.environ["SERVER_IP"] = args.server_ip
     raise SystemExit(deploy.main(enabled_protocols=protocols, domain_root=domain))
 
 
@@ -172,6 +180,10 @@ def build_parser():
     p_deploy.add_argument("--protocols", type=str, default=None,
                           help="启用的协议 (逗号分隔, 如 anytls,tuic,hy2)")
     p_deploy.add_argument("--domain", type=str, default=None, help="主域名")
+    p_deploy.add_argument("--reality-server", type=str, default=None, help="Reality 伪装域名")
+    p_deploy.add_argument("--reality-port", type=int, default=None, help="Reality 伪装端口")
+    p_deploy.add_argument("--hy2-masquerade", type=str, default=None, help="Hysteria2 masquerade URL")
+    p_deploy.add_argument("--server-ip", type=str, default=None, help="VPS 公网 IP (用于客户端 TUN 排除)")
     p_deploy.set_defaults(func=cmd_deploy)
 
     p_install = sub.add_parser("install", help="仅安装依赖 (WARP, sing-box)")

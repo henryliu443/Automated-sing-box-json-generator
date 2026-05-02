@@ -1,9 +1,11 @@
+import os
+
 from route_profile import TUN_EXCLUDED_ROUTES, build_dns_config, build_route_config
 
 
-REALITY_DECOY_SERVER = "react.dev"
-REALITY_DECOY_PORT = 443
-HY2_MASQUERADE_URL = "https://www.cloudflare.com"
+REALITY_SERVER_ENV = "REALITY_SERVER"
+REALITY_PORT_ENV = "REALITY_PORT"
+HY2_MASQUERADE_ENV = "HY2_MASQUERADE"
 
 TUIC_CERT_PATH = "/etc/sing-box-tuic/certs/tuic.crt"
 TUIC_KEY_PATH = "/etc/sing-box-tuic/certs/tuic.key"
@@ -36,6 +38,22 @@ def _client_tun_route_exclude(server_ip=None):
 
 SERVER_DNS_SERVERS = ("1.1.1.1", "1.0.0.1")
 SERVER_DNS_TAG = "dns-server"
+
+def get_reality_decoy_server():
+    return os.getenv(REALITY_SERVER_ENV, "www.cloudflare.com").strip() or "www.cloudflare.com"
+
+
+def get_reality_decoy_port():
+    raw = os.getenv(REALITY_PORT_ENV, "443").strip()
+    try:
+        return int(raw)
+    except ValueError:
+        return 443
+
+
+def get_hy2_masquerade_url():
+    return os.getenv(HY2_MASQUERADE_ENV, "https://www.cloudflare.com").strip() or "https://www.cloudflare.com"
+
 
 PROTOCOL_DEFS = {
     "anytls": {
@@ -127,6 +145,8 @@ def build_domain_resolver(server_tag="dns-direct"):
 # ---------------------------------------------------------------------------
 
 def _build_anytls_server_inbound(creds, hosts):
+    decoy_server = get_reality_decoy_server()
+    decoy_port = get_reality_decoy_port()
     return {
         "type": "anytls",
         "tag": PROTOCOL_DEFS["anytls"]["inbound_tag"],
@@ -146,12 +166,12 @@ def _build_anytls_server_inbound(creds, hosts):
         ],
         "tls": {
             "enabled": True,
-            "server_name": REALITY_DECOY_SERVER,
+            "server_name": decoy_server,
             "reality": {
                 "enabled": True,
                 "handshake": {
-                    "server": REALITY_DECOY_SERVER,
-                    "server_port": REALITY_DECOY_PORT,
+                    "server": decoy_server,
+                    "server_port": decoy_port,
                 },
                 "private_key": creds["private_key"],
                 "short_id": creds["short_id"],
@@ -169,10 +189,12 @@ def _build_tuic_server_inbound(creds, hosts):
         "listen_port": pdef["server_port"],
         "users": [{"uuid": creds["uuid"], "password": creds["pwd_tuic"]}],
         "congestion_control": "bbr",
-        "zero_rtt_handshake": True,
+        "zero_rtt_handshake": False,
+        "heartbeat": "10s",
         "tls": {
             "enabled": True,
             "server_name": hosts["tuic"],
+            "alpn": ["h3"],
             "certificate_path": pdef["cert_path"],
             "key_path": pdef["key_path"],
         },
@@ -187,12 +209,15 @@ def _build_hy2_server_inbound(creds, hosts):
         "listen": "::",
         "listen_port": pdef["server_port"],
         "users": [{"password": creds["pwd_hy2"]}],
-        "ignore_client_bandwidth": True,
+        "ignore_client_bandwidth": False,
+        "up_mbps": 100,
+        "down_mbps": 100,
         "obfs": {"type": "salamander", "password": creds["pwd_obfs"]},
-        "masquerade": HY2_MASQUERADE_URL,
+        "masquerade": get_hy2_masquerade_url(),
         "tls": {
             "enabled": True,
             "server_name": hosts["hy2"],
+            "alpn": ["h3"],
             "certificate_path": pdef["cert_path"],
             "key_path": pdef["key_path"],
         },
@@ -210,6 +235,7 @@ _SERVER_INBOUND_BUILDERS = {
 # ---------------------------------------------------------------------------
 
 def _build_anytls_client_outbound(creds, hosts):
+    decoy_server = get_reality_decoy_server()
     return {
         "type": "anytls",
         "tag": PROTOCOL_DEFS["anytls"]["outbound_tag"],
@@ -218,7 +244,7 @@ def _build_anytls_client_outbound(creds, hosts):
         "server_port": PROTOCOL_DEFS["anytls"]["server_port"],
         "tls": {
             "enabled": True,
-            "server_name": REALITY_DECOY_SERVER,
+            "server_name": decoy_server,
             "utls": {"enabled": True, "fingerprint": "chrome"},
             "reality": {
                 "enabled": True,
@@ -241,9 +267,12 @@ def _build_tuic_client_outbound(creds, hosts):
         "password": creds["pwd_tuic"],
         "congestion_control": "bbr",
         "udp_relay_mode": "quic",
+        "zero_rtt_handshake": False,
+        "heartbeat": "10s",
         "tls": {
             "enabled": True,
             "server_name": hosts["tuic"],
+            "alpn": ["h3"],
         },
     }
 
@@ -255,11 +284,14 @@ def _build_hy2_client_outbound(creds, hosts):
         "server": hosts["hy2"],
         "domain_resolver": build_domain_resolver(),
         "server_port": PROTOCOL_DEFS["hy2"]["server_port"],
+        "up_mbps": 100,
+        "down_mbps": 100,
         "obfs": {"type": "salamander", "password": creds["pwd_obfs"]},
         "password": creds["pwd_hy2"],
         "tls": {
             "enabled": True,
             "server_name": hosts["hy2"],
+            "alpn": ["h3"],
         },
     }
 
@@ -358,9 +390,15 @@ def build_server_config(creds, protocol_hosts=None, warp_mode="proxy", enabled_p
         "dns": {
             "servers": [
                 {
-                    "type": "udp",
+                    "type": "https",
                     "tag": SERVER_DNS_TAG,
                     "server": SERVER_DNS_SERVERS[0],
+                    "path": "/dns-query",
+                    "tls": {
+                        "enabled": True,
+                        "server_name": "cloudflare-dns.com",
+                        "alpn": ["h2", "http/1.1"],
+                    },
                 },
             ],
         },

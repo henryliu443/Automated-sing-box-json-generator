@@ -1,15 +1,39 @@
 import json
+import os
 import sys
 from urllib.parse import urlencode
 
 import cli_ui as ui
 from config import (
     ALL_PROTOCOLS,
+    HY2_MASQUERADE_ENV,
     PROTOCOL_DEFS,
-    REALITY_DECOY_SERVER,
+    REALITY_PORT_ENV,
+    REALITY_SERVER_ENV,
     build_client_config,
+    get_reality_decoy_server,
 )
 from state import load_state
+
+
+ANTI_DETECTION_STATE_KEYS = (
+    REALITY_SERVER_ENV,
+    REALITY_PORT_ENV,
+    HY2_MASQUERADE_ENV,
+)
+
+
+def _hydrate_env_from_state(data):
+    anti_detection = data.get("anti_detection") or {}
+    for key in ANTI_DETECTION_STATE_KEYS:
+        if os.environ.get(key):
+            continue
+        raw = anti_detection.get(key)
+        if raw is None:
+            continue
+        value = str(raw).strip()
+        if value:
+            os.environ[key] = value
 
 
 def _require_state():
@@ -49,7 +73,7 @@ def build_anytls_link(creds, hosts):
     port = PROTOCOL_DEFS["anytls"]["server_port"]
     params = urlencode({
         "security": "reality",
-        "sni": REALITY_DECOY_SERVER,
+        "sni": get_reality_decoy_server(),
         "fp": "chrome",
         "pbk": creds["public_key"],
         "sid": creds["short_id"],
@@ -66,6 +90,7 @@ _LINK_BUILDERS = {
 
 def export_json(output=None):
     data = _require_state()
+    _hydrate_env_from_state(data)
     creds = data["credentials"]
     hosts = data["protocol_hosts"]
     protocols = data["enabled_protocols"]
@@ -88,6 +113,7 @@ def export_json(output=None):
 
 def export_links():
     data = _require_state()
+    _hydrate_env_from_state(data)
     creds = data["credentials"]
     hosts = data["protocol_hosts"]
     protocols = data["enabled_protocols"]
@@ -101,6 +127,7 @@ def export_links():
 
 def export_qr():
     data = _require_state()
+    _hydrate_env_from_state(data)
     creds = data["credentials"]
     hosts = data["protocol_hosts"]
     protocols = data["enabled_protocols"]
