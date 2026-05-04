@@ -51,9 +51,9 @@ IGNORED_RULES = [
 ]
 
 ROUTE_FINAL = "route-mode"
-# Keep known direct destinations on the real direct outbound even when the
-# route-mode selector defaults to proxy for unknown destinations.
-DIRECT_RULE_OUTBOUND = "direct"
+# Direct rule targets follow route-mode so switching to `global` can truly
+# proxy domains listed in direct_* buckets (e.g. baidu.com).
+DIRECT_RULE_OUTBOUND = ROUTE_FINAL
 USE_GEOIP_CN = True
 
 
@@ -117,7 +117,7 @@ def build_dns_config(hosts):
                     "server_name": DNS_REMOTE_TLS_SERVER_NAME,
                     "alpn": ["h2", "http/1.1"],
                 },
-                "detour": ROUTE_FINAL,
+                "detour": "global",
                 "domain_resolver": "dns-direct",
             },
         ],
