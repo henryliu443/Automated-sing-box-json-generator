@@ -27,6 +27,15 @@ SKIP_PROXY_DOMAINS = ["localhost", "captive.apple.com"]
 SKIP_PROXY_SUFFIXES = ["local"]
 DNS_DIRECT_ONLY_DOMAINS = ["cp.cloudflare.com"]
 DNS_DIRECT_ONLY_SUFFIXES = ["in-addr.arpa", "ip6.arpa"]
+APNS_PROXY_SUFFIXES = ["push.apple.com"]
+APNS_PROXY_CIDR = [
+    "17.0.0.0/8",
+    "2403:300:a42::/48",
+    "2403:300:a51::/48",
+    "2620:149:a44::/48",
+    "2a01:b740:a42::/48",
+]
+APNS_PROXY_PORTS = [443, 5223, 2197]
 TUN_EXCLUDED_ROUTES = [
     # Android VpnService automatically excludes loopback (127.0.0.0/8) and
     # link-local (169.254.0.0/16). Attempting to exclude them explicitly
@@ -83,15 +92,17 @@ def build_dns_config(hosts):
 
     direct_exact = _merge_unique(SKIP_PROXY_DOMAINS, DNS_DIRECT_ONLY_DOMAINS, DIRECT_EXACT)
     direct_suffix = _merge_unique(SKIP_PROXY_SUFFIXES, DNS_DIRECT_ONLY_SUFFIXES, DIRECT_SUFFIX)
+    proxy_suffix = _merge_unique(APNS_PROXY_SUFFIXES, PROXY_SUFFIX)
 
+    rules.append({"domain_suffix": APNS_PROXY_SUFFIXES, "server": "dns-remote"})
     if direct_exact:
         rules.append({"domain": direct_exact, "server": "dns-direct"})
     if PROXY_EXACT:
         rules.append({"domain": PROXY_EXACT, "server": "dns-remote"})
     if direct_suffix:
         rules.append({"domain_suffix": direct_suffix, "server": "dns-direct"})
-    if PROXY_SUFFIX:
-        rules.append({"domain_suffix": PROXY_SUFFIX, "server": "dns-remote"})
+    if proxy_suffix:
+        rules.append({"domain_suffix": proxy_suffix, "server": "dns-remote"})
     if DIRECT_KEYWORD:
         rules.append({"domain_keyword": DIRECT_KEYWORD, "server": "dns-direct"})
     if PROXY_KEYWORD:
@@ -143,15 +154,18 @@ def build_route_config(sniff_inbound=None):
 
     direct_exact = _merge_unique(SKIP_PROXY_DOMAINS, DIRECT_EXACT)
     direct_suffix = _merge_unique(SKIP_PROXY_SUFFIXES, DIRECT_SUFFIX)
+    proxy_suffix = _merge_unique(APNS_PROXY_SUFFIXES, PROXY_SUFFIX)
 
+    rules.append({"domain_suffix": APNS_PROXY_SUFFIXES, "action": "route", "outbound": "global"})
+    rules.append({"ip_cidr": APNS_PROXY_CIDR, "port": APNS_PROXY_PORTS, "action": "route", "outbound": "global"})
     if direct_exact:
         rules.append({"domain": direct_exact, "action": "route", "outbound": DIRECT_RULE_OUTBOUND})
     if PROXY_EXACT:
         rules.append({"domain": PROXY_EXACT, "action": "route", "outbound": "global"})
     if direct_suffix:
         rules.append({"domain_suffix": direct_suffix, "action": "route", "outbound": DIRECT_RULE_OUTBOUND})
-    if PROXY_SUFFIX:
-        rules.append({"domain_suffix": PROXY_SUFFIX, "action": "route", "outbound": "global"})
+    if proxy_suffix:
+        rules.append({"domain_suffix": proxy_suffix, "action": "route", "outbound": "global"})
     if DIRECT_KEYWORD:
         rules.append({"domain_keyword": DIRECT_KEYWORD, "action": "route", "outbound": DIRECT_RULE_OUTBOUND})
     if PROXY_KEYWORD:
