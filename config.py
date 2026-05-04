@@ -371,8 +371,8 @@ def build_client_outbounds(creds, hosts, enabled_protocols=None):
         {
             "type": "selector",
             "tag": CLIENT_ROUTE_MODE_TAG,
-            "outbounds": [CLIENT_ROUTE_TAG, CLIENT_PROXY_BEST_TAG, "direct"],
-            "default": CLIENT_ROUTE_TAG,
+            "outbounds": [CLIENT_PROXY_BEST_TAG, CLIENT_ROUTE_TAG, "direct"],
+            "default": CLIENT_PROXY_BEST_TAG,
             "interrupt_exist_connections": True,
         },
         {
