@@ -56,6 +56,7 @@ CLIENT_PROXY_AUTO_TAG = "proxy-auto"
 CLIENT_ROUTE_MODE_TAG = "route-mode"
 CLIENT_ROUTE_TAG = "route"
 URLTEST_URL = "https://cp.cloudflare.com/generate_204"
+CLIENT_TUN_STACK = "gvisor"
 CLIENT_TUN_ADDRESSES = [
     "172.19.0.1/30",
     "fdfe:dcba:9876::1/126",
@@ -481,7 +482,7 @@ def build_client_config(creds, protocol_hosts=None, enabled_protocols=None, serv
                 "auto_route": True,
                 "strict_route": True,
                 "route_exclude_address": _client_tun_route_exclude(server_ip),
-                "stack": "system",
+                "stack": CLIENT_TUN_STACK,
             }
         ],
         "outbounds": build_client_outbounds(creds, hosts, enabled_protocols),
