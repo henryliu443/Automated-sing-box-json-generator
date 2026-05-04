@@ -83,31 +83,33 @@ python3 main.py config --protocols hy2
 
 | 模式 | 未匹配流量 | DNS（未匹配域名） | 推荐场景 |
 |------|-----------|-------------------|---------|
-| **route**（默认） | 直连 | 1.1.1.1 DoH via 代理 | 日常使用，规则分流 |
-| **global** | 走代理节点（含 direct 规则） | 1.1.1.1 DoH via 代理 | 需要全局翻墙、测试连通性 |
-| **direct** | 直连 | 1.1.1.1 DoH via 代理 | 临时关闭代理、排查网络问题 |
+| **global**（默认） | 走代理节点 | 1.1.1.1 DoH via 当前 route-mode | 日常使用，未收录国外站默认走代理 |
+| **route** | 直连 | 1.1.1.1 DoH via 当前 route-mode | 仅规则命中代理，其余直连 |
+| **direct** | 直连 | 1.1.1.1 DoH 直连拨号 | VPS/WARP 故障时保底上网、排查网络问题 |
 
 三层结构：
 
 ```
 route-mode (selector)          ← route.final 指向这里
-├── route   (direct)           ← 默认，规则分流
-├── global  (selector)         ← 全局代理，可手动选节点或 proxy-auto
+├── global  (selector)         ← 默认，未匹配流量走代理，可手动选节点或 proxy-auto
 │   ├── proxy-auto (urltest)   ← 自动测速选最优
 │   ├── anytls-out / tuic-out / hy2-out
 │   └── route                  ← 兜底回退到直连
-└── direct  (direct)           ← 全部直连
+├── route   (direct)           ← 规则模式，未匹配流量直连
+└── direct  (direct)           ← 未匹配流量的直连故障模式
 ```
 
-> **注意**：切到 `global` 时，分流规则的结果会收敛到代理出口（等价全局代理）；仅保留私网地址直连以保证局域网访问稳定。
+> **注意**：`rules.json` 的 `direct_*`、GEOSITE-CN 和 GEOIP-CN 命中项始终直连，用来保证 Apple Music 中国大陆、国内服务和局域网访问稳定。`global` 是“代理兜底”模式，不再强行代理已确认需要直连的目标。
 
 **排查指南**：
 
 | 现象 | 排查步骤 |
 |------|---------|
-| 全局模式下某些网站打不开 | 切到 `global` → 确认 `proxy-auto` 已选中且测速通过；若节点全挂，在 `global` 里手动切到 `route` 兜底 |
+| Apple Music 中国大陆在代理模式下打不开 | 确认 Apple 相关域名/IP 在 `rules.json` 的 `direct_*` 中；这些规则会始终走 `direct` |
+| 未收录的国外网站被直连 | 使用默认 `route-mode` → `global`；未命中直连规则的流量会走代理出口 |
+| VPS/WARP 崩溃后无法上网 | 将 `route-mode` 手动切到 `direct` 或在 `global` 选择器里手动选 `route` 兜底 |
 | 规则模式下国内网站走了代理 | 检查 `rules.json` 的 `direct_suffix` 是否包含该域名，或确认 GEOSITE-CN 规则集已下载 |
-| DNS 解析慢 | DNS final 为 `dns-remote`（1.1.1.1 DoH via 代理），若代理延迟高会影响首次解析；已匹配的国内域名走 `dns-direct`（223.5.5.5）不受影响 |
+| DNS 解析慢 | DNS final 为 `dns-remote`（1.1.1.1 DoH，经当前 `route-mode` 拨号），若代理延迟高会影响首次解析；已匹配的国内域名走 `dns-direct`（223.5.5.5）不受影响 |
 | 想临时绕过大部分代理 | 切 `route-mode` → `direct`；显式 proxy 规则仍生效 |
 
 ### DNS 记录自动管理
