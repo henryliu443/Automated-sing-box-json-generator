@@ -5,3 +5,5 @@ __pycache__/
 
 # Deployment state contains private keys and passwords — never commit.
 deploy-state.json
+.env
+.env.*
