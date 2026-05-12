@@ -1,5 +1,4 @@
 import os
-from typing import Optional
 
 from route_profile import TUN_EXCLUDED_ROUTES, build_dns_config, build_route_config
 
@@ -7,43 +6,6 @@ from route_profile import TUN_EXCLUDED_ROUTES, build_dns_config, build_route_con
 REALITY_SERVER_ENV = "REALITY_SERVER"
 REALITY_PORT_ENV = "REALITY_PORT"
 HY2_MASQUERADE_ENV = "HY2_MASQUERADE"
-
-_fingerprint_injection: Optional[dict[str, str]] = None
-
-
-def set_fingerprint_injection(data: Optional[dict]) -> None:
-    """Apply runtime fingerprint values (typically from deployment state).
-
-    Overrides process environment for Reality / HY2 masquerade resolution so server
-    and client generation do not rely on sharing the same *env*."""
-    global _fingerprint_injection
-    if not data:
-        _fingerprint_injection = None
-        return
-    cleaned = {}
-    for key, raw in data.items():
-        if raw is None:
-            continue
-        s = str(raw).strip()
-        if s:
-            cleaned[str(key)] = s
-    _fingerprint_injection = cleaned or None
-
-
-def clear_fingerprint_injection() -> None:
-    global _fingerprint_injection
-    _fingerprint_injection = None
-
-
-def _fingerprint_lookup(env_key: str) -> Optional[str]:
-    if not _fingerprint_injection:
-        return None
-    value = _fingerprint_injection.get(env_key)
-    if value is None:
-        return None
-    s = str(value).strip()
-    return s or None
-
 
 TUIC_CERT_PATH = "/etc/sing-box-tuic/certs/tuic.crt"
 TUIC_KEY_PATH = "/etc/sing-box-tuic/certs/tuic.key"
@@ -78,26 +40,30 @@ def _client_tun_route_exclude(server_ip=None):
 SERVER_DNS_SERVERS = ("1.1.1.1", "1.0.0.1")
 SERVER_DNS_TAG = "dns-server"
 
-def get_reality_decoy_server():
-    injected = _fingerprint_lookup(REALITY_SERVER_ENV)
-    if injected is not None:
-        return injected
+
+def get_reality_decoy_server(opts=None):
+    opts = opts or {}
+    if opts.get(REALITY_SERVER_ENV):
+        return str(opts[REALITY_SERVER_ENV]).strip()
     return os.getenv(REALITY_SERVER_ENV, "www.cloudflare.com").strip() or "www.cloudflare.com"
 
 
-def get_reality_decoy_port():
-    injected = _fingerprint_lookup(REALITY_PORT_ENV)
-    raw = injected if injected is not None else os.getenv(REALITY_PORT_ENV, "443").strip()
+def get_reality_decoy_port(opts=None):
+    opts = opts or {}
+    if opts.get(REALITY_PORT_ENV):
+        raw = str(opts[REALITY_PORT_ENV]).strip()
+    else:
+        raw = os.getenv(REALITY_PORT_ENV, "443").strip()
     try:
         return int(raw)
     except ValueError:
         return 443
 
 
-def get_hy2_masquerade_url():
-    injected = _fingerprint_lookup(HY2_MASQUERADE_ENV)
-    if injected is not None:
-        return injected
+def get_hy2_masquerade_url(opts=None):
+    opts = opts or {}
+    if opts.get(HY2_MASQUERADE_ENV):
+        return str(opts[HY2_MASQUERADE_ENV]).strip()
     return os.getenv(HY2_MASQUERADE_ENV, "https://www.cloudflare.com").strip() or "https://www.cloudflare.com"
 
 
@@ -163,7 +129,6 @@ def build_server_outbounds(warp_mode):
                 "server": "127.0.0.1",
                 "server_port": 40000,
                 "version": "5",
-                "udp_over_tcp": True,
             },
             {"type": "direct", "tag": "direct"},
         ]
@@ -175,6 +140,9 @@ def build_server_outbounds(warp_mode):
             {"type": "direct", "tag": "warp-out"},
             {"type": "direct", "tag": "direct"},
         ]
+
+    if warp_mode == "none":
+        return [{"type": "direct", "tag": "direct"}]
 
     raise ValueError(f"unsupported warp_mode: {warp_mode}")
 
@@ -190,9 +158,9 @@ def build_domain_resolver(server_tag="dns-direct"):
 # Server inbound builders (one per protocol)
 # ---------------------------------------------------------------------------
 
-def _build_anytls_server_inbound(creds, hosts):
-    decoy_server = get_reality_decoy_server()
-    decoy_port = get_reality_decoy_port()
+def _build_anytls_server_inbound(creds, hosts, opts=None):
+    decoy_server = get_reality_decoy_server(opts)
+    decoy_port = get_reality_decoy_port(opts)
     return {
         "type": "anytls",
         "tag": PROTOCOL_DEFS["anytls"]["inbound_tag"],
@@ -226,7 +194,7 @@ def _build_anytls_server_inbound(creds, hosts):
     }
 
 
-def _build_tuic_server_inbound(creds, hosts):
+def _build_tuic_server_inbound(creds, hosts, opts=None):
     pdef = PROTOCOL_DEFS["tuic"]
     return {
         "type": "tuic",
@@ -247,7 +215,7 @@ def _build_tuic_server_inbound(creds, hosts):
     }
 
 
-def _build_hy2_server_inbound(creds, hosts):
+def _build_hy2_server_inbound(creds, hosts, opts=None):
     pdef = PROTOCOL_DEFS["hy2"]
     return {
         "type": "hysteria2",
@@ -256,10 +224,10 @@ def _build_hy2_server_inbound(creds, hosts):
         "listen_port": pdef["server_port"],
         "users": [{"password": creds["pwd_hy2"]}],
         "ignore_client_bandwidth": False,
-        "up_mbps": 100,
-        "down_mbps": 100,
+        "up_mbps": 1000,
+        "down_mbps": 1000,
         "obfs": {"type": "salamander", "password": creds["pwd_obfs"]},
-        "masquerade": get_hy2_masquerade_url(),
+        "masquerade": get_hy2_masquerade_url(opts),
         "tls": {
             "enabled": True,
             "server_name": hosts["hy2"],
@@ -280,8 +248,8 @@ _SERVER_INBOUND_BUILDERS = {
 # Client outbound builders (one per protocol)
 # ---------------------------------------------------------------------------
 
-def _build_anytls_client_outbound(creds, hosts):
-    decoy_server = get_reality_decoy_server()
+def _build_anytls_client_outbound(creds, hosts, opts=None):
+    decoy_server = get_reality_decoy_server(opts)
     return {
         "type": "anytls",
         "tag": PROTOCOL_DEFS["anytls"]["outbound_tag"],
@@ -302,7 +270,7 @@ def _build_anytls_client_outbound(creds, hosts):
     }
 
 
-def _build_tuic_client_outbound(creds, hosts):
+def _build_tuic_client_outbound(creds, hosts, opts=None):
     return {
         "type": "tuic",
         "tag": PROTOCOL_DEFS["tuic"]["outbound_tag"],
@@ -323,15 +291,15 @@ def _build_tuic_client_outbound(creds, hosts):
     }
 
 
-def _build_hy2_client_outbound(creds, hosts):
+def _build_hy2_client_outbound(creds, hosts, opts=None):
     return {
         "type": "hysteria2",
         "tag": PROTOCOL_DEFS["hy2"]["outbound_tag"],
         "server": hosts["hy2"],
         "domain_resolver": build_domain_resolver(),
         "server_port": PROTOCOL_DEFS["hy2"]["server_port"],
-        "up_mbps": 100,
-        "down_mbps": 100,
+        "up_mbps": 1000,
+        "down_mbps": 1000,
         "obfs": {"type": "salamander", "password": creds["pwd_obfs"]},
         "password": creds["pwd_hy2"],
         "tls": {
@@ -361,7 +329,7 @@ def _validate_protocols(enabled_protocols):
         raise ValueError("at least one protocol must be enabled")
 
 
-def build_client_outbounds(creds, hosts, enabled_protocols=None):
+def build_client_outbounds(creds, hosts, enabled_protocols=None, fingerprint_opts=None):
     if enabled_protocols is None:
         enabled_protocols = ALL_PROTOCOLS
     _validate_protocols(enabled_protocols)
@@ -394,14 +362,15 @@ def build_client_outbounds(creds, hosts, enabled_protocols=None):
     ]
 
     for proto in enabled_protocols:
-        result.append(_CLIENT_OUTBOUND_BUILDERS[proto](creds, hosts))
+        result.append(_CLIENT_OUTBOUND_BUILDERS[proto](creds, hosts, fingerprint_opts))
 
     result.append({"type": "direct", "tag": CLIENT_ROUTE_TAG})
     result.append({"type": "direct", "tag": "direct"})
+    result.append({"type": "block", "tag": "block"})
     return result
 
 
-def build_server_config(creds, protocol_hosts=None, warp_mode="proxy", enabled_protocols=None):
+def build_server_config(creds, protocol_hosts=None, warp_mode="proxy", enabled_protocols=None, fingerprint_opts=None):
     if not protocol_hosts:
         raise ValueError("protocol_hosts is required")
     if enabled_protocols is None:
@@ -409,9 +378,10 @@ def build_server_config(creds, protocol_hosts=None, warp_mode="proxy", enabled_p
     _validate_protocols(enabled_protocols)
 
     hosts = protocol_hosts
-    inbounds = [_SERVER_INBOUND_BUILDERS[p](creds, hosts) for p in enabled_protocols]
+    inbounds = [_SERVER_INBOUND_BUILDERS[p](creds, hosts, fingerprint_opts) for p in enabled_protocols]
     inbound_tags = [PROTOCOL_DEFS[p]["inbound_tag"] for p in enabled_protocols]
 
+    outbound_tag = "warp-out" if warp_mode in ("proxy", "tun") else "direct"
     rules = []
     if "anytls" in enabled_protocols:
         rules.append({
@@ -428,7 +398,7 @@ def build_server_config(creds, protocol_hosts=None, warp_mode="proxy", enabled_p
     rules.append({
         "inbound": inbound_tags,
         "action": "route",
-        "outbound": "warp-out",
+        "outbound": outbound_tag,
     })
 
     return {
@@ -452,13 +422,13 @@ def build_server_config(creds, protocol_hosts=None, warp_mode="proxy", enabled_p
         "outbounds": build_server_outbounds(warp_mode),
         "route": {
             "rules": rules,
-            "final": "warp-out",
+            "final": outbound_tag,
             "default_domain_resolver": SERVER_DNS_TAG,
         },
     }
 
 
-def build_client_config(creds, protocol_hosts=None, enabled_protocols=None, server_ip=None):
+def build_client_config(creds, protocol_hosts=None, enabled_protocols=None, server_ip=None, fingerprint_opts=None):
     if not protocol_hosts:
         raise ValueError("protocol_hosts is required")
     if enabled_protocols is None:
@@ -485,7 +455,7 @@ def build_client_config(creds, protocol_hosts=None, enabled_protocols=None, serv
                 "stack": CLIENT_TUN_STACK,
             }
         ],
-        "outbounds": build_client_outbounds(creds, hosts, enabled_protocols),
+        "outbounds": build_client_outbounds(creds, hosts, enabled_protocols, fingerprint_opts),
         "route": build_route_config(sniff_inbound=CLIENT_TUN_INBOUND_TAG),
     }
 
