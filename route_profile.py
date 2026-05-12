@@ -116,7 +116,6 @@ def build_dns_config(hosts):
             "type": "udp",
             "tag": "dns-direct" if i == 0 else f"dns-direct-{i}",
             "server": server_ip,
-            "detour": "direct",
         } for i, server_ip in enumerate(DNS_DIRECT_SERVER)
     ]
 
@@ -151,6 +150,7 @@ def build_route_config(sniff_inbound=None):
     rules = [
         {"protocol": "dns", "action": "hijack-dns"},
         {"ip_is_private": True, "action": "route", "outbound": "direct"},
+        {"ip_cidr": DNS_DIRECT_SERVER, "action": "route", "outbound": "direct"},
     ]
 
     if sniff_inbound:
@@ -194,14 +194,12 @@ def build_route_config(sniff_inbound=None):
                 "tag": "geosite-cn",
                 "format": "binary",
                 "url": GEOSITE_CN_RULESET_URL,
-                "download_detour": "direct",
             },
             {
                 "type": "remote",
                 "tag": "geoip-cn",
                 "format": "binary",
                 "url": GEOIP_CN_RULESET_URL,
-                "download_detour": "direct",
             },
         ]
         route["rules"].append(
