@@ -121,11 +121,11 @@ apply_state_hook() {{
         timeout 20 "$WARP_HOOK" "$state" "$DISABLE_FLAG" >/dev/null 2>&1 || true
     fi
 
-    if [ -f /etc/sing-box/config.warp.json ] && [ -f /etc/sing-box/config.direct.json ]; then
+    if [ -f /etc/sing-box/profiles/config.warp.json ] && [ -f /etc/sing-box/profiles/config.direct.json ]; then
         if [ "$state" = "disabled" ]; then
-            ln -sfn /etc/sing-box/config.direct.json /etc/sing-box/config.json
+            ln -sfn /etc/sing-box/profiles/config.direct.json /etc/sing-box/config.json
         else
-            ln -sfn /etc/sing-box/config.warp.json /etc/sing-box/config.json
+            ln -sfn /etc/sing-box/profiles/config.warp.json /etc/sing-box/config.json
         fi
         systemctl restart sing-box >/dev/null 2>&1 || true
     fi

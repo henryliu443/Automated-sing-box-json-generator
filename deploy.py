@@ -31,8 +31,8 @@ DOMAIN_RE = re.compile(
 CF_TOKEN_ENV = "CF_Token"
 CF_ZONE_ID_ENV = "CF_Zone_ID"
 SING_BOX_CONFIG_PATH = "/etc/sing-box/config.json"
-SING_BOX_WARP_CONFIG_PATH = "/etc/sing-box/config.warp.json"
-SING_BOX_DIRECT_CONFIG_PATH = "/etc/sing-box/config.direct.json"
+SING_BOX_WARP_CONFIG_PATH = "/etc/sing-box/profiles/config.warp.json"
+SING_BOX_DIRECT_CONFIG_PATH = "/etc/sing-box/profiles/config.direct.json"
 WATCHDOG_SCRIPT_PATH = "/root/warp_lazy_watchdog.sh"
 SERVER_IP_ENV = "SERVER_IP"
 
@@ -194,6 +194,16 @@ def activate_server_config(target=SING_BOX_WARP_CONFIG_PATH, link_path=SING_BOX_
         raise RuntimeError(f"激活 sing-box 配置失败: {e}") from e
 
 
+def _clean_legacy_configs():
+    """Clean up old config files that might cause 'duplicate inbound tag' with sing-box -C."""
+    for legacy_file in ("/etc/sing-box/config.warp.json", "/etc/sing-box/config.direct.json"):
+        if os.path.isfile(legacy_file) and not os.path.islink(legacy_file):
+            try:
+                os.remove(legacy_file)
+            except OSError:
+                pass
+
+
 def restart_services_and_verify(warp_mode, proto_ports=None):
     ui.section("服务重载")
     ui.step("先校验 sing-box 配置，再重启服务并执行端口校验")
@@ -303,6 +313,7 @@ def deploy(domain_root=None, enabled_protocols=None, fingerprint_overrides=None)
     write_server_config(server_config_warp, SING_BOX_WARP_CONFIG_PATH)
     write_server_config(server_config_direct, SING_BOX_DIRECT_CONFIG_PATH)
     activate_server_config()
+    _clean_legacy_configs()
 
     ui.section("保存部署状态")
     state_mod.save_state({
@@ -380,6 +391,7 @@ def reconfigure(enabled_protocols=None):
     write_server_config(server_config_warp, SING_BOX_WARP_CONFIG_PATH)
     write_server_config(server_config_direct, SING_BOX_DIRECT_CONFIG_PATH)
     activate_server_config()
+    _clean_legacy_configs()
 
     loaded["enabled_protocols"] = enabled_protocols
     state_mod.save_state(loaded)
