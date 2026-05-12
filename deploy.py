@@ -23,6 +23,7 @@ from config import (
 )
 from credentials import gen_subdomain_prefixes, generate_credentials
 from installer import ensure_dependencies, ensure_port_safety, print_port_snapshot
+from killswitch import deploy_killswitch_assets, killswitch_status
 import state as state_mod
 from watchdog import deploy_watchdog
 
@@ -290,6 +291,8 @@ def deploy(domain_root=None, enabled_protocols=None, fingerprint_overrides=None)
         ui.section("守护任务")
         ui.step(f"部署 watchdog: {WATCHDOG_SCRIPT_PATH}")
         deploy_watchdog(WATCHDOG_SCRIPT_PATH, warp_mode=warp_mode)
+        ui.step("部署 VPS VPN kill switch 控制脚本")
+        deploy_killswitch_assets()
         restart_services_and_verify(warp_mode, pports)
         print_success_result(client_config, phosts, warp_mode, enabled_protocols)
     finally:
@@ -384,6 +387,8 @@ def show_status():
         ui.success("WARP: 系统隧道模式正常")
     else:
         ui.warning("WARP 未就绪")
+
+    ui.kv("VPN kill switch", killswitch_status())
 
     try:
         print_port_snapshot()

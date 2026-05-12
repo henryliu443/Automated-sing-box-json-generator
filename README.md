@@ -40,6 +40,7 @@ python3 main.py deploy
 | `python3 main.py config` | 使用已保存的状态重新生成配置（可选 `--protocols` 切换协议） |
 | `python3 main.py export` | 导出客户端配置（`--format json\|link\|qr`，`--output` 指定文件） |
 | `python3 main.py status` | 查看部署状态和服务健康度 |
+| `python3 main.py vpn install/on/off/status/refresh` | 安装并控制 VPS 出站 Kill Switch（不管理 SSH 入站） |
 | `python3 main.py install` | 仅安装依赖（WARP、sing-box） |
 | `python3 main.py update` | 更新 sing-box 到最新版本 |
 | `python3 main.py cleanup-dns` | 删除所有由本工具创建的 Cloudflare DNS 记录 |
@@ -138,6 +139,37 @@ route-mode (selector)          ← route.final 指向这里
 - 自动安装官方 Cloudflare WARP（`warp-svc` + `warp-cli`）
 - 自动识别本地代理模式（`127.0.0.1:40000`）与系统隧道模式
 - 集成 Watchdog 守护脚本，每分钟检测 WARP 健康状态，自动重连/重注册
+
+### VPS Kill Switch
+
+部署时会安装 `vpnctl`、`vpn-safety-refresh` 与 `vpn-killswitch.service`，用于控制 VPS 主动出站流量：
+
+```bash
+vpnctl on
+vpnctl status
+vpnctl off
+vpnctl refresh
+```
+
+控制结构：
+
+```text
+vpnctl
+  ├── state machine
+  ├── backend router       -> sing-box
+  ├── firewall controller  -> nft
+  └── health monitor       -> WARP / sing-box / firewall
+```
+
+设计约束：
+
+- 不修改 sshd 配置
+- 不限制 SSH 来源 IP
+- 不修改 input 默认策略
+- 只创建独立 nftables 表 `inet vpnks`
+- `engage.cloudflareclient.com` 会在 VPS 上解析后写入 nft set
+- VPN 状态只由 `vpnctl` 输出，nft/systemd/sing-box 不参与状态决策
+- VPN 异常时普通公网出站会被阻断，但 SSH 入站/回包保持放行
 
 ### 其他
 
