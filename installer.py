@@ -262,16 +262,25 @@ def print_port_snapshot():
     run_cmd("ss -tulnp")
 
 
-def ensure_port_safety(warp_mode="proxy", protocol_ports=None):
+def ensure_port_safety(warp_mode="proxy", protocol_ports=None, wait_singbox=True):
     ensure_ss_tool()
 
-    if protocol_ports is not None:
-        for port, transport in protocol_ports:
-            _wait_required_port(port, transport, {"sing-box"}, {"sing-box"})
+    if wait_singbox:
+        if protocol_ports is not None:
+            for port, transport in protocol_ports:
+                _wait_required_port(port, transport, {"sing-box"}, {"sing-box"})
+        else:
+            _wait_required_port(23244, "tcp", {"sing-box"}, {"sing-box"})
+            _wait_required_port(7443, "udp", {"sing-box"}, {"sing-box"})
+            _wait_required_port(9443, "udp", {"sing-box"}, {"sing-box"})
     else:
-        _wait_required_port(23244, "tcp", {"sing-box"}, {"sing-box"})
-        _wait_required_port(7443, "udp", {"sing-box"}, {"sing-box"})
-        _wait_required_port(9443, "udp", {"sing-box"}, {"sing-box"})
+        if protocol_ports is not None:
+            for port, transport in protocol_ports:
+                assert_port_allowed(port, transport, {"sing-box"})
+        else:
+            assert_port_allowed(23244, "tcp", {"sing-box"})
+            assert_port_allowed(7443, "udp", {"sing-box"})
+            assert_port_allowed(9443, "udp", {"sing-box"})
 
     if warp_mode == "proxy":
         allowed = {WARP_SERVICE, *LEGACY_WARP_SERVICES}
@@ -916,7 +925,7 @@ def ensure_dependencies(protocol_ports=None, preferred_warp_mode=None):
     ensure_ss_tool()
     warp_mode = ensure_warp(preferred_mode=preferred_warp_mode)
     ensure_singbox()
-    ensure_port_safety(warp_mode, protocol_ports)
+    ensure_port_safety(warp_mode, protocol_ports, wait_singbox=False)
     print_port_snapshot()
     return warp_mode
 
