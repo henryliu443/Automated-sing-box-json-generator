@@ -42,6 +42,7 @@ REQUIRED_FILES = [
     "route_profile.py",
     "certs.py",
     "installer.py",
+    "killswitch.py",
     "credentials.py",
     "watchdog.py",
     "state.py",
@@ -108,9 +109,11 @@ def cmd_deploy(args):
 def cmd_install(args):
     ui_mod = importlib.import_module("cli_ui")
     installer = importlib.import_module("installer")
+    killswitch = importlib.import_module("killswitch")
     ui_mod.banner("依赖安装", "WARP、sing-box 安装检查")
     try:
         installer.ensure_dependencies()
+        killswitch.deploy_killswitch_assets()
         ui_mod.success("依赖安装完成")
     except RuntimeError as e:
         ui_mod.error(str(e))
@@ -144,6 +147,24 @@ def cmd_status(args):
     ui_mod = importlib.import_module("cli_ui")
     ui_mod.banner("服务状态", "sing-box & WARP 健康检查")
     deploy.show_status()
+
+
+def cmd_vpn(args):
+    ui_mod = importlib.import_module("cli_ui")
+    killswitch = importlib.import_module("killswitch")
+    try:
+        if args.action == "install":
+            ui_mod.banner("VPN Kill Switch", "安装 vpnctl 与 nftables 独立规则")
+            killswitch.deploy_killswitch_assets()
+            return
+
+        if not os.path.isfile(killswitch.VPNCTL_PATH):
+            raise RuntimeError("vpnctl 尚未安装，请先运行: python3 main.py vpn install")
+
+        os.execv(killswitch.VPNCTL_PATH, [killswitch.VPNCTL_PATH, args.action])
+    except RuntimeError as e:
+        ui_mod.error(str(e))
+        raise SystemExit(1)
 
 
 def cmd_update(args):
@@ -211,6 +232,11 @@ def build_parser():
 
     p_status = sub.add_parser("status", help="检查服务状态")
     p_status.set_defaults(func=cmd_status)
+
+    p_vpn = sub.add_parser("vpn", help="管理 VPS VPN ON/OFF kill switch")
+    p_vpn.add_argument("action", choices=["install", "on", "off", "status", "refresh"],
+                       help="install 安装控制脚本；on/off/status/refresh 调用 vpnctl")
+    p_vpn.set_defaults(func=cmd_vpn)
 
     p_update = sub.add_parser("update", help="更新 sing-box 到最新版本")
     p_update.set_defaults(func=cmd_update)
