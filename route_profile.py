@@ -16,12 +16,12 @@ for _key in _REQUIRED_BUCKETS:
     if not isinstance(_rules[_key], list):
         raise TypeError(f"rules.json[{_key!r}] must be a list, got {type(_rules[_key]).__name__}")
 
-DNS_DIRECT_SERVER = "223.5.5.5"
+DNS_DIRECT_SERVER = ["223.5.5.5", "119.29.29.29"]
 DNS_REMOTE_SERVER = "1.1.1.1"
 DNS_REMOTE_PATH = "/dns-query"
 DNS_REMOTE_TLS_SERVER_NAME = "cloudflare-dns.com"
-GEOIP_CN_RULESET_URL = "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geoip/cn.srs"
-GEOSITE_CN_RULESET_URL = "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/cn.srs"
+GEOIP_CN_RULESET_URL = "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geoip/cn.srs"
+GEOSITE_CN_RULESET_URL = "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/cn.srs"
 
 SKIP_PROXY_DOMAINS = ["localhost", "captive.apple.com"]
 SKIP_PROXY_SUFFIXES = ["local"]
@@ -111,13 +111,18 @@ def build_dns_config(hosts):
     if USE_GEOIP_CN:
         rules.append({"rule_set": "geosite-cn", "server": "dns-direct"})
 
+    direct_dns_servers = [
+        {
+            "type": "udp",
+            "tag": "dns-direct" if i == 0 else f"dns-direct-{i}",
+            "server": server_ip,
+            "detour": "direct",
+        } for i, server_ip in enumerate(DNS_DIRECT_SERVER)
+    ]
+
     return {
         "servers": [
-            {
-                "type": "udp",
-                "tag": "dns-direct",
-                "server": DNS_DIRECT_SERVER,
-            },
+            *direct_dns_servers,
             {
                 "type": "https",
                 "tag": "dns-remote",
