@@ -58,10 +58,26 @@ def normalize_domain_input(raw):
     value = value.split("/", 1)[0].split(":", 1)[0].strip().strip(".")
     if not value:
         raise RuntimeError("主域名不能为空")
+
     domain = value
     if not DOMAIN_RE.fullmatch(domain):
         raise RuntimeError(f"域名格式不合法: {domain}")
     return domain
+
+
+def _sanitize_json_value(value: Any):
+    if isinstance(value, str):
+        return re.sub(r"[\ud800-\udfff]", "\uFFFD", value)
+    if isinstance(value, dict):
+        return {
+            _sanitize_json_value(key): _sanitize_json_value(val)
+            for key, val in value.items()
+        }
+    if isinstance(value, list):
+        return [_sanitize_json_value(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_sanitize_json_value(item) for item in value)
+    return value
 
 
 def resolve_cf_dns_credentials():
@@ -168,7 +184,7 @@ def write_server_config(server_config: dict[str, Any], path=SING_BOX_CONFIG_PATH
     os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w", encoding="utf-8") as f:
-        json.dump(server_config, f, indent=2, ensure_ascii=False)
+        json.dump(_sanitize_json_value(server_config), f, indent=2, ensure_ascii=False)
 
 
 def activate_server_config(target=SING_BOX_WARP_CONFIG_PATH, link_path=SING_BOX_CONFIG_PATH):
