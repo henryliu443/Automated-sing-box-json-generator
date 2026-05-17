@@ -9,6 +9,9 @@ from . import installer
 from . import killswitch
 from . import export
 from . import cloudflare_dns as cf_dns
+from . import certs
+from . import watchdog
+from . import state as state_mod
 
 def _parse_protocols(value):
     if not value:
@@ -46,7 +49,7 @@ def cmd_config(args):
     protocols = _parse_protocols(args.protocols) if args.protocols else None
     ui.banner("重新生成配置", "基于当前部署状态更新 config.json")
     try:
-        deploy.regenerate_config(enabled_protocols=protocols)
+        deploy.reconfigure(enabled_protocols=protocols)
         ui.success("配置重新生成并已应用")
     except RuntimeError as e:
         ui.error(str(e))
@@ -98,6 +101,32 @@ def cmd_cleanup_dns(args):
         ui.error(str(e))
         sys.exit(1)
 
+def cmd_certs(args):
+    ui.banner("管理证书", "手动触发 TLS 证书续签")
+    try:
+        loaded = state_mod.load_state()
+        if not loaded:
+            raise RuntimeError("未找到部署状态，请先运行 deploy")
+        cf_token, cf_zone_id = deploy.resolve_cf_dns_credentials()
+        phosts = loaded.get("protocol_hosts", {})
+        enabled_protocols = loaded.get("enabled_protocols", None)
+        deploy.run_tls_issuance(phosts, cf_token, cf_zone_id, enabled_protocols)
+        ui.success("TLS 证书处理完成")
+    except RuntimeError as e:
+        ui.error(str(e))
+        sys.exit(1)
+
+def cmd_watchdog(args):
+    ui.banner("部署 Watchdog", "手动部署/更新 WARP 守护脚本")
+    try:
+        loaded = state_mod.load_state()
+        warp_mode = loaded.get("warp_mode", "proxy") if loaded else "proxy"
+        watchdog.deploy_watchdog(deploy.WATCHDOG_SCRIPT_PATH, warp_mode=warp_mode)
+        ui.success("Watchdog 守护脚本已部署")
+    except RuntimeError as e:
+        ui.error(str(e))
+        sys.exit(1)
+
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="automated-sing-box-generator",
@@ -143,6 +172,12 @@ def build_parser():
 
     p_cleanup = sub.add_parser("cleanup-dns", help="删除所有由本工具创建的 Cloudflare DNS 记录")
     p_cleanup.set_defaults(func=cmd_cleanup_dns)
+
+    p_certs = sub.add_parser("certs", help="手动管理/续签 TLS 证书")
+    p_certs.set_defaults(func=cmd_certs)
+
+    p_watchdog = sub.add_parser("watchdog", help="手动部署/更新 WARP Watchdog 守护脚本")
+    p_watchdog.set_defaults(func=cmd_watchdog)
 
     return parser
 

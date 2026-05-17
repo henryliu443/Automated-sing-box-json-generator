@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: automated-sing-box-generator
-Version: 0.1.0
+Version: 0.1.1
 Summary: Sing-box + Cloudflare WARP 一键自动部署工具
 Author-email: henryliu443 <henryliu443@gmail.com>
 Project-URL: Homepage, https://github.com/henryliu443/Automated-sing-box-json-generator
