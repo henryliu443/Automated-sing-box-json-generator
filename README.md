@@ -8,20 +8,20 @@ Sing-box + Cloudflare WARP 一键自动部署工具。
 
 ## 快速开始
 
-### 一键远程部署
-
-在 VPS（`root` 用户）上执行：
+### 推荐方式：通过 pip 安装
 
 ```bash
-curl -Ls "https://raw.githubusercontent.com/henryliu443/Automated-sing-box-json-generator/refs/heads/main/main.py" > main.py && python3 main.py
+pip install automated-sing-box-generator
+automated-sing-box-generator deploy
 ```
 
-### 克隆仓库后运行
+### 开发者方式：从源码运行
 
 ```bash
 git clone https://github.com/henryliu443/Automated-sing-box-json-generator.git
 cd Automated-sing-box-json-generator
-python3 main.py deploy
+pip install -e .
+automated-sing-box-generator deploy
 ```
 
 部署过程中会交互式提示输入：
@@ -35,33 +35,33 @@ python3 main.py deploy
 
 | 命令 | 说明 |
 |------|------|
-| `python3 main.py` | 无参数默认执行完整部署 |
-| `python3 main.py deploy` | 完整部署（可选 `--domain` / `--protocols`） |
-| `python3 main.py config` | 使用已保存的状态重新生成配置（可选 `--protocols` 切换协议） |
-| `python3 main.py export` | 导出客户端配置（`--format json\|link\|qr`，`--output` 指定文件） |
-| `python3 main.py status` | 查看部署状态和服务健康度 |
-| `python3 main.py vpn install/on/off/status/refresh` | 安装并控制 VPS 出站 Kill Switch（不管理 SSH 入站） |
-| `python3 main.py install` | 仅安装依赖（WARP、sing-box） |
-| `python3 main.py update` | 更新 sing-box 到最新版本 |
-| `python3 main.py cleanup-dns` | 删除所有由本工具创建的 Cloudflare DNS 记录 |
+| `automated-sing-box-generator` | 无参数默认执行完整部署 |
+| `automated-sing-box-generator deploy` | 完整部署（可选 `--domain` / `--protocols`） |
+| `automated-sing-box-generator config` | 使用已保存的状态重新生成配置（可选 `--protocols` 切换协议） |
+| `automated-sing-box-generator export` | 导出客户端配置（`--format json\|link\|qr`，`--output` 指定文件） |
+| `automated-sing-box-generator status` | 查看部署状态和服务健康度 |
+| `automated-sing-box-generator vpn install/on/off/status/refresh` | 安装并控制 VPS 出站 Kill Switch（不管理 SSH 入站） |
+| `automated-sing-box-generator install` | 仅安装依赖（WARP、sing-box） |
+| `automated-sing-box-generator update` | 更新 sing-box 到最新版本 |
+| `automated-sing-box-generator cleanup-dns` | 删除所有由本工具创建 of Cloudflare DNS 记录 |
 
 ### 示例
 
 ```bash
 # 非交互式部署，仅启用 AnyTLS 和 TUIC
-python3 main.py deploy --domain example.com --protocols anytls,tuic
+automated-sing-box-generator deploy --domain example.com --protocols anytls,tuic
 
 # 导出分享链接
-python3 main.py export --format link
+automated-sing-box-generator export --format link
 
 # 导出客户端 JSON 到文件
-python3 main.py export --format json --output client.json
+automated-sing-box-generator export --format json --output client.json
 
-# 导出二维码（需 pip3 install qrcode）
-python3 main.py export --format qr
+# 导出二维码
+automated-sing-box-generator export --format qr
 
 # 切换到仅 Hysteria2
-python3 main.py config --protocols hy2
+automated-sing-box-generator config --protocols hy2
 ```
 
 ---
