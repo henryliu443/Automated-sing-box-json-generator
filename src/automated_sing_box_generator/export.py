@@ -8,6 +8,13 @@ from .config import (
     build_client_config,
     get_reality_decoy_server,
 )
+from .qr_payload import (
+    COMPRESSED_JSON_MODE,
+    MULTIPART_JSON_MODE,
+    RAW_JSON_MODE,
+    decode_qr_json_tokens,
+    make_qr_json_payload_plan,
+)
 from .state import load_state
 
 
@@ -65,18 +72,7 @@ _LINK_BUILDERS = {
 
 def export_json(output=None):
     data = _require_state()
-    opts = data.get("anti_detection")
-    creds = data["credentials"]
-    hosts = data["protocol_hosts"]
-    protocols = data["enabled_protocols"]
-
-    client_cfg = build_client_config(
-        creds,
-        protocol_hosts=hosts,
-        enabled_protocols=protocols,
-        server_ip=data.get("server_ip"),
-        fingerprint_opts=opts,
-    )
+    client_cfg = _build_client_config_from_state(data)
     text = json.dumps(client_cfg, indent=2, ensure_ascii=False)
 
     if output:
@@ -121,19 +117,51 @@ def export_qr():
             continue
         link = builder(creds, hosts, opts)
         ui.section(f"{proto} 分享二维码")
-        qr = qrcode.QRCode(box_size=1, border=1)
+        qr = _new_qr(qrcode)
         qr.add_data(link)
         qr.make(fit=True)
         qr.print_ascii(out=sys.stdout, invert=True)
         print(link)
 
 
+def _build_client_config_from_state(data, compact=False):
+    return build_client_config(
+        data["credentials"],
+        protocol_hosts=data["protocol_hosts"],
+        enabled_protocols=data["enabled_protocols"],
+        server_ip=data.get("server_ip"),
+        fingerprint_opts=data.get("anti_detection"),
+        compact=compact,
+    )
+
+
+def _new_qr(qrcode):
+    return qrcode.QRCode(
+        error_correction=qrcode.constants.ERROR_CORRECT_L,
+        box_size=1,
+        border=1,
+    )
+
+
+def _qr_fits(qrcode, text):
+    try:
+        qr = _new_qr(qrcode)
+        qr.add_data(text)
+        qr.make(fit=True)
+        return True
+    except (qrcode.exceptions.DataOverflowError, ValueError):
+        return False
+
+
+def _print_qr(qrcode, text):
+    qr = _new_qr(qrcode)
+    qr.add_data(text)
+    qr.make(fit=True)
+    qr.print_ascii(out=sys.stdout, invert=True)
+
+
 def export_qr_json():
     data = _require_state()
-    opts = data.get("anti_detection")
-    creds = data["credentials"]
-    hosts = data["protocol_hosts"]
-    protocols = data["enabled_protocols"]
 
     try:
         import qrcode
@@ -141,43 +169,77 @@ def export_qr_json():
         ui.error("需要安装 qrcode 库: pip3 install qrcode")
         return
 
-    # Try full config first
-    client_cfg = build_client_config(
-        creds,
-        protocol_hosts=hosts,
-        enabled_protocols=protocols,
-        server_ip=data.get("server_ip"),
-        fingerprint_opts=opts,
-        compact=False
-    )
-    text = json.dumps(client_cfg, separators=(',', ':'), ensure_ascii=False)
-
+    client_cfg = _build_client_config_from_state(data, compact=False)
     try:
-        qr = qrcode.QRCode(box_size=1, border=1)
-        qr.add_data(text)
-        qr.make(fit=True)
+        plan = make_qr_json_payload_plan(client_cfg, lambda token: _qr_fits(qrcode, token))
+    except ValueError as e:
+        raise RuntimeError(f"无法生成可恢复的 JSON 二维码: {e}") from e
+
+    if plan.mode == RAW_JSON_MODE:
         ui.section("全量 JSON 配置二维码")
-        qr.print_ascii(out=sys.stdout, invert=True)
-    except Exception:
-        # Fallback to compact config if full is too big
-        ui.info("全量 JSON 太大，正在尝试生成精简版 JSON 二维码 (不包含冗长的路由规则)...")
-        client_cfg = build_client_config(
-            creds,
-            protocol_hosts=hosts,
-            enabled_protocols=protocols,
-            server_ip=data.get("server_ip"),
-            fingerprint_opts=opts,
-            compact=True
-        )
-        text = json.dumps(client_cfg, separators=(',', ':'), ensure_ascii=False)
-        try:
-            qr = qrcode.QRCode(box_size=1, border=1)
-            qr.add_data(text)
-            qr.make(fit=True)
-            ui.section("精简版 JSON 配置二维码 (已省略部分路由规则)")
-            qr.print_ascii(out=sys.stdout, invert=True)
-        except Exception as e:
-            ui.error(f"无法生成二维码: {e}")
+        _print_qr(qrcode, plan.tokens[0])
+        ui.success(f"已生成原始 JSON 二维码，可直接导入客户端 ({plan.original_chars} 字符)")
+        return
+
+    if plan.mode == COMPRESSED_JSON_MODE:
+        ui.section("压缩 JSON 配置二维码")
+        _print_qr(qrcode, plan.tokens[0])
+        ui.info("扫描内容为 SBOX:ZLIB45 压缩载荷，使用 decode-qr-json 还原完整 JSON。")
+        ui.command("automated-sing-box-generator decode-qr-json --input scans.txt --output client.json")
+        ui.kv("original_chars", plan.original_chars)
+        ui.kv("compressed_bytes", plan.compressed_bytes)
+        ui.kv("payload_sha256", plan.sha256)
+        return
+
+    if plan.mode == MULTIPART_JSON_MODE:
+        ui.section(f"压缩 JSON 分片二维码 ({len(plan.tokens)} 张)")
+        ui.info("请扫描全部分片，每行保存一个扫描结果；分片顺序不限，解码时会校验完整性。")
+        ui.command("automated-sing-box-generator decode-qr-json --input scans.txt --output client.json")
+        ui.kv("original_chars", plan.original_chars)
+        ui.kv("compressed_bytes", plan.compressed_bytes)
+        ui.kv("payload_sha256", plan.sha256)
+        for index, token in enumerate(plan.tokens, 1):
+            ui.section(f"分片 {index}/{len(plan.tokens)}")
+            _print_qr(qrcode, token)
+        return
+
+    raise RuntimeError(f"未知 QR JSON 输出模式: {plan.mode}")
+
+
+def _read_qr_token_lines(input_path=None, tokens=None):
+    result = []
+
+    if input_path:
+        if input_path == "-":
+            result.extend(sys.stdin.read().splitlines())
+        else:
+            with open(input_path, "r", encoding="utf-8") as f:
+                result.extend(f.read().splitlines())
+
+    if tokens:
+        result.extend(tokens)
+
+    if not result and not sys.stdin.isatty():
+        result.extend(sys.stdin.read().splitlines())
+
+    return [line for line in result if line != ""]
+
+
+def decode_qr_json(input_path=None, output=None, tokens=None):
+    token_lines = _read_qr_token_lines(input_path=input_path, tokens=tokens)
+    try:
+        compact_text = decode_qr_json_tokens(token_lines)
+        payload = json.loads(compact_text)
+    except (ValueError, json.JSONDecodeError) as e:
+        raise RuntimeError(f"无法解码 QR JSON: {e}") from e
+
+    text = json.dumps(payload, indent=2, ensure_ascii=False)
+    if output:
+        with open(output, "w", encoding="utf-8") as f:
+            f.write(text + "\n")
+        ui.success(f"客户端配置已写入: {output}")
+    else:
+        print(text)
 
 
 def export_client_config(fmt="json", output=None):

@@ -63,6 +63,14 @@ def cmd_export(args):
         ui.error(str(e))
         sys.exit(1)
 
+def cmd_decode_qr_json(args):
+    ui.banner("还原 QR JSON", "解码 SBOX:ZLIB45 压缩或分片载荷")
+    try:
+        export.decode_qr_json(input_path=args.input, output=args.output, tokens=args.tokens)
+    except RuntimeError as e:
+        ui.error(str(e))
+        sys.exit(1)
+
 def cmd_status(args):
     deploy.show_status()
 
@@ -158,6 +166,15 @@ def build_parser():
     p_export.add_argument("--output", type=str, default=None,
                           help="输出文件路径 (仅 json 格式)")
     p_export.set_defaults(func=cmd_export)
+
+    p_decode = sub.add_parser("decode-qr-json", help="还原 qr-json 压缩/分片扫描结果")
+    p_decode.add_argument("tokens", nargs="*",
+                          help="扫描得到的 QR 文本；也可使用 --input 从文件或 stdin 读取")
+    p_decode.add_argument("--input", "-i", type=str, default=None,
+                          help="包含扫描结果的文本文件；使用 '-' 表示 stdin")
+    p_decode.add_argument("--output", "-o", type=str, default=None,
+                          help="输出 JSON 文件路径")
+    p_decode.set_defaults(func=cmd_decode_qr_json)
 
     p_status = sub.add_parser("status", help="检查服务状态")
     p_status.set_defaults(func=cmd_status)

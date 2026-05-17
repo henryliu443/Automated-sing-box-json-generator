@@ -39,6 +39,7 @@ automated-sing-box-generator deploy
 | `automated-sing-box-generator deploy` | 完整部署（可选 `--domain` / `--protocols`） |
 | `automated-sing-box-generator config` | 使用已保存的状态重新生成配置（可选 `--protocols` 切换协议） |
 | `automated-sing-box-generator export` | 导出客户端配置（`--format json\|link\|qr\|qr-json`，`--output` 指定文件） |
+| `automated-sing-box-generator decode-qr-json` | 还原 `qr-json` 压缩或分片二维码扫描结果 |
 | `automated-sing-box-generator status` | 查看部署状态和服务健康度 |
 | `automated-sing-box-generator vpn install/on/off/status/refresh` | 安装并控制 VPS 出站 Kill Switch（不管理 SSH 入站） |
 | `automated-sing-box-generator install` | 仅安装依赖（WARP、sing-box） |
@@ -62,6 +63,9 @@ automated-sing-box-generator export --format qr
 
 # 导出二维码 (完整 JSON 配置)
 automated-sing-box-generator export --format qr-json
+
+# 还原压缩/分片 qr-json 扫描结果
+automated-sing-box-generator decode-qr-json --input scans.txt --output client.json
 
 # 切换到仅 Hysteria2
 automated-sing-box-generator config --protocols hy2
@@ -136,6 +140,26 @@ route-mode (selector)          ← route.final 指向这里
 - **JSON** — 完整 sing-box 客户端配置，可直接导入 GUI 客户端
 - **Share Link** — 标准 URI 格式（`tuic://`、`hy2://`、`anytls://`）
 - **QR Code** — 终端 ASCII 二维码，手机扫码导入。支持协议分享链接 (`--format qr`) 或完整 JSON 配置 (`--format qr-json`)。
+
+#### 完整 JSON 二维码恢复格式
+
+`export --format qr-json` 始终使用完整客户端 JSON，不会为了二维码容量省略路由规则或其他配置内容。输出策略自动选择：
+
+1. 原始 JSON 能放入单个二维码时，直接输出可导入客户端的 JSON 二维码。
+2. 原始 JSON 超出容量时，输出 `SBOX:ZLIB45` 载荷：完整 JSON 先用 zlib 压缩，再用 Base45 编码，便于二维码使用 alphanumeric 模式承载。
+3. 压缩后仍超出单个二维码容量时，自动输出多个 `SBOX:ZLIB45` 分片二维码。每个分片包含序号、总数和 SHA-256 校验值，解码时会检查缺片、错片和内容损坏。
+
+压缩或分片二维码不能直接导入普通 sing-box 客户端，需要先还原为 JSON。将扫码得到的每个 QR 文本按“一行一个”保存到 `scans.txt`，然后运行：
+
+```bash
+automated-sing-box-generator decode-qr-json --input scans.txt --output client.json
+```
+
+也可以从 stdin 读取：
+
+```bash
+cat scans.txt | automated-sing-box-generator decode-qr-json --input - --output client.json
+```
 
 ### WARP 集成
 
