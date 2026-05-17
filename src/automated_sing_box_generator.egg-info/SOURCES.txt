@@ -10,6 +10,7 @@ src/automated_sing_box_generator/deploy.py
 src/automated_sing_box_generator/export.py
 src/automated_sing_box_generator/installer.py
 src/automated_sing_box_generator/killswitch.py
+src/automated_sing_box_generator/qr_payload.py
 src/automated_sing_box_generator/route_profile.py
 src/automated_sing_box_generator/rules.json
 src/automated_sing_box_generator/state.py
@@ -21,3 +22,4 @@ src/automated_sing_box_generator.egg-info/dependency_links.txt
 src/automated_sing_box_generator.egg-info/entry_points.txt
 src/automated_sing_box_generator.egg-info/requires.txt
 src/automated_sing_box_generator.egg-info/top_level.txt
+tests/test_qr_payload.py

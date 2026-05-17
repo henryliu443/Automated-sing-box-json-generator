@@ -1,5 +1,6 @@
 """Cloudflare DNS record management for automated subdomain provisioning."""
 
+import concurrent.futures
 import json
 import urllib.error
 import urllib.parse
@@ -45,22 +46,24 @@ def _cf_request(method, path, token, data=None):
 # Public IP detection
 # ---------------------------------------------------------------------------
 
+def _check_ip(url):
+    req = urllib.request.Request(url, headers={"User-Agent": "sing-box-deploy"})
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        ip = resp.read().decode("utf-8").strip()
+    parts = ip.split(".")
+    if len(parts) == 4 and all(p.isdigit() and 0 <= int(p) <= 255 for p in parts):
+        return ip
+    raise ValueError("Invalid IP")
+
 def detect_public_ipv4():
-    """Detect the server's public IPv4 address."""
-    for url in IP_DETECT_URLS:
-        try:
-            req = urllib.request.Request(
-                url, headers={"User-Agent": "sing-box-deploy"},
-            )
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                ip = resp.read().decode("utf-8").strip()
-            parts = ip.split(".")
-            if len(parts) == 4 and all(
-                p.isdigit() and 0 <= int(p) <= 255 for p in parts
-            ):
-                return ip
-        except Exception:
-            continue
+    """Detect the server's public IPv4 address using concurrent requests."""
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(IP_DETECT_URLS)) as executor:
+        futures = {executor.submit(_check_ip, url): url for url in IP_DETECT_URLS}
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                return future.result()
+            except Exception:
+                continue
     raise RuntimeError(
         "无法自动检测服务器公网 IPv4 地址，请检查网络连接"
     )
@@ -98,8 +101,16 @@ def _create_a_record(zone_id, token, name, ip):
     return result["result"]["id"]
 
 
-def _delete_record(zone_id, token, record_id):
-    _cf_request("DELETE", f"/zones/{zone_id}/dns_records/{record_id}", token)
+def _delete_record(zone_id, token, record_id, fqdn_for_log=None):
+    try:
+        _cf_request("DELETE", f"/zones/{zone_id}/dns_records/{record_id}", token)
+        if fqdn_for_log:
+            ui.step(f"已删除 DNS 记录: {fqdn_for_log}")
+    except RuntimeError as e:
+        if fqdn_for_log:
+            ui.warning(f"删除记录失败: {fqdn_for_log}")
+        else:
+            raise e
 
 
 def _is_managed(record):
@@ -114,70 +125,70 @@ def sync_dns_records(zone_id, token, desired_fqdns, server_ip,
                      old_record_ids=None):
     """Ensure exactly *desired_fqdns* have A records pointing to *server_ip*.
 
-    1. Delete stale managed records stored from the previous deploy.
-    2. Inspect all managed A records: fix wrong-IP, skip correct ones.
-    3. Create missing records.
-
-    Returns ``{fqdn: record_id}`` for persistence in state.
+    Executes DNS creations and deletions concurrently for speed.
     """
     desired_set = set(desired_fqdns)
+    
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        # Phase 1 — delete previously-stored records that are no longer needed
+        futures_del = []
+        if old_record_ids:
+            for fqdn, rid in list(old_record_ids.items()):
+                if fqdn not in desired_set:
+                    futures_del.append(executor.submit(_delete_record, zone_id, token, rid, fqdn))
+        
+        concurrent.futures.wait(futures_del)
 
-    # Phase 1 — delete previously-stored records that are no longer needed
-    if old_record_ids:
-        for fqdn, rid in list(old_record_ids.items()):
-            if fqdn not in desired_set:
-                try:
-                    _delete_record(zone_id, token, rid)
-                    ui.step(f"已删除旧 DNS 记录: {fqdn}")
-                except RuntimeError:
-                    ui.warning(f"删除旧记录失败 (可能已不存在): {fqdn}")
+        # Phase 2 — scan existing managed A records
+        all_a = _list_a_records(zone_id, token)
+        managed = {r["name"]: r for r in all_a if _is_managed(r)}
 
-    # Phase 2 — scan existing managed A records
-    all_a = _list_a_records(zone_id, token)
-    managed = {r["name"]: r for r in all_a if _is_managed(r)}
+        new_ids: dict[str, str] = {}
+        futures_create = {}
 
-    new_ids: dict[str, str] = {}
+        for fqdn in desired_set:
+            rec = managed.pop(fqdn, None)
 
-    for fqdn in desired_set:
-        rec = managed.pop(fqdn, None)
+            if rec and rec.get("content") == server_ip:
+                ui.success(f"DNS 记录已存在: {fqdn} → {server_ip}")
+                new_ids[fqdn] = rec["id"]
+                continue
 
-        if rec and rec.get("content") == server_ip:
-            ui.success(f"DNS 记录已存在: {fqdn} → {server_ip}")
-            new_ids[fqdn] = rec["id"]
-            continue
+            if rec:
+                ui.step(f"IP 变更，重建记录: {fqdn} ({rec['content']} → {server_ip})")
+                executor.submit(_delete_record, zone_id, token, rec["id"])
 
-        if rec:
-            ui.step(f"IP 变更，重建记录: {fqdn} ({rec['content']} → {server_ip})")
+            ui.step(f"提交创建 DNS A 记录: {fqdn} → {server_ip}")
+            futures_create[executor.submit(_create_a_record, zone_id, token, fqdn, server_ip)] = fqdn
+
+        for future in concurrent.futures.as_completed(futures_create):
+            fqdn = futures_create[future]
             try:
-                _delete_record(zone_id, token, rec["id"])
-            except RuntimeError:
-                pass
+                new_ids[fqdn] = future.result()
+            except RuntimeError as e:
+                ui.warning(f"创建记录失败 {fqdn}: {e}")
 
-        ui.step(f"创建 DNS A 记录: {fqdn} → {server_ip}")
-        new_ids[fqdn] = _create_a_record(zone_id, token, fqdn, server_ip)
-
-    # Phase 3 — purge leftover managed records we no longer need
-    for name, rec in managed.items():
-        try:
-            _delete_record(zone_id, token, rec["id"])
-            ui.step(f"清理无用 DNS 记录: {name}")
-        except RuntimeError:
-            ui.warning(f"清理记录失败: {name}")
+        # Phase 3 — purge leftover managed records we no longer need
+        futures_purge = []
+        for name, rec in managed.items():
+            futures_purge.append(executor.submit(_delete_record, zone_id, token, rec["id"], name))
+            
+        concurrent.futures.wait(futures_purge)
 
     ui.success(f"DNS 同步完成 ({len(new_ids)} 条 A 记录)")
     return new_ids
 
 
 def cleanup_all_managed_records(zone_id, token):
-    """Remove every DNS record tagged with our managed comment."""
+    """Remove every DNS record tagged with our managed comment concurrently."""
     all_a = _list_a_records(zone_id, token)
     managed = [r for r in all_a if _is_managed(r)]
+    
     removed = 0
-    for rec in managed:
-        try:
-            _delete_record(zone_id, token, rec["id"])
-            ui.step(f"已删除: {rec['name']} → {rec['content']}")
-            removed += 1
-        except RuntimeError:
-            ui.warning(f"删除失败: {rec['name']}")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {executor.submit(_delete_record, zone_id, token, rec["id"], rec["name"]): rec for rec in managed}
+        for future in concurrent.futures.as_completed(futures):
+            if future.exception() is None:
+                removed += 1
+                
     return removed
