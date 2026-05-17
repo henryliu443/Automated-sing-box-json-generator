@@ -194,12 +194,14 @@ def build_route_config(sniff_inbound=None):
                 "tag": "geosite-cn",
                 "format": "binary",
                 "url": GEOSITE_CN_RULESET_URL,
+                "download_detour": "direct",
             },
             {
                 "type": "remote",
                 "tag": "geoip-cn",
                 "format": "binary",
                 "url": GEOIP_CN_RULESET_URL,
+                "download_detour": "direct",
             },
         ]
         route["rules"].append(
