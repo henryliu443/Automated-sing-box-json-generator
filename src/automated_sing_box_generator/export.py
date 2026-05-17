@@ -128,6 +128,58 @@ def export_qr():
         print(link)
 
 
+def export_qr_json():
+    data = _require_state()
+    opts = data.get("anti_detection")
+    creds = data["credentials"]
+    hosts = data["protocol_hosts"]
+    protocols = data["enabled_protocols"]
+
+    try:
+        import qrcode
+    except ImportError:
+        ui.error("需要安装 qrcode 库: pip3 install qrcode")
+        return
+
+    # Try full config first
+    client_cfg = build_client_config(
+        creds,
+        protocol_hosts=hosts,
+        enabled_protocols=protocols,
+        server_ip=data.get("server_ip"),
+        fingerprint_opts=opts,
+        compact=False
+    )
+    text = json.dumps(client_cfg, separators=(',', ':'), ensure_ascii=False)
+
+    try:
+        qr = qrcode.QRCode(box_size=1, border=1)
+        qr.add_data(text)
+        qr.make(fit=True)
+        ui.section("全量 JSON 配置二维码")
+        qr.print_ascii(out=sys.stdout, invert=True)
+    except Exception:
+        # Fallback to compact config if full is too big
+        ui.info("全量 JSON 太大，正在尝试生成精简版 JSON 二维码 (不包含冗长的路由规则)...")
+        client_cfg = build_client_config(
+            creds,
+            protocol_hosts=hosts,
+            enabled_protocols=protocols,
+            server_ip=data.get("server_ip"),
+            fingerprint_opts=opts,
+            compact=True
+        )
+        text = json.dumps(client_cfg, separators=(',', ':'), ensure_ascii=False)
+        try:
+            qr = qrcode.QRCode(box_size=1, border=1)
+            qr.add_data(text)
+            qr.make(fit=True)
+            ui.section("精简版 JSON 配置二维码 (已省略部分路由规则)")
+            qr.print_ascii(out=sys.stdout, invert=True)
+        except Exception as e:
+            ui.error(f"无法生成二维码: {e}")
+
+
 def export_client_config(fmt="json", output=None):
     if fmt == "json":
         export_json(output)
@@ -135,5 +187,7 @@ def export_client_config(fmt="json", output=None):
         export_links()
     elif fmt == "qr":
         export_qr()
+    elif fmt == "qr-json":
+        export_qr_json()
     else:
         raise RuntimeError(f"不支持的导出格式: {fmt}")

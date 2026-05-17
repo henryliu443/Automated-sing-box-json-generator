@@ -38,7 +38,7 @@ automated-sing-box-generator deploy
 | `automated-sing-box-generator` | 无参数默认执行完整部署 |
 | `automated-sing-box-generator deploy` | 完整部署（可选 `--domain` / `--protocols`） |
 | `automated-sing-box-generator config` | 使用已保存的状态重新生成配置（可选 `--protocols` 切换协议） |
-| `automated-sing-box-generator export` | 导出客户端配置（`--format json\|link\|qr`，`--output` 指定文件） |
+| `automated-sing-box-generator export` | 导出客户端配置（`--format json\|link\|qr\|qr-json`，`--output` 指定文件） |
 | `automated-sing-box-generator status` | 查看部署状态和服务健康度 |
 | `automated-sing-box-generator vpn install/on/off/status/refresh` | 安装并控制 VPS 出站 Kill Switch（不管理 SSH 入站） |
 | `automated-sing-box-generator install` | 仅安装依赖（WARP、sing-box） |
@@ -57,8 +57,11 @@ automated-sing-box-generator export --format link
 # 导出客户端 JSON 到文件
 automated-sing-box-generator export --format json --output client.json
 
-# 导出二维码
+# 导出二维码 (协议分享链接)
 automated-sing-box-generator export --format qr
+
+# 导出二维码 (完整 JSON 配置)
+automated-sing-box-generator export --format qr-json
 
 # 切换到仅 Hysteria2
 automated-sing-box-generator config --protocols hy2
@@ -132,7 +135,7 @@ route-mode (selector)          ← route.final 指向这里
 
 - **JSON** — 完整 sing-box 客户端配置，可直接导入 GUI 客户端
 - **Share Link** — 标准 URI 格式（`tuic://`、`hy2://`、`anytls://`）
-- **QR Code** — 终端 ASCII 二维码，手机扫码导入
+- **QR Code** — 终端 ASCII 二维码，手机扫码导入。支持协议分享链接 (`--format qr`) 或完整 JSON 配置 (`--format qr-json`)。
 
 ### WARP 集成
 
@@ -210,7 +213,7 @@ vpnctl
 
 | 文件 | 说明 |
 |------|------|
-| `main.py` | CLI 入口，argparse 子命令分发，远程 bootstrap |
+| `cli.py` | CLI 入口，argparse 子命令分发 |
 | `deploy.py` | 核心部署/重配置/状态查看流程 |
 | `config.py` | 服务端/客户端 sing-box 配置生成（按协议动态组装） |
 | `cloudflare_dns.py` | Cloudflare API DNS 记录管理（创建/更新/清理） |
@@ -221,7 +224,8 @@ vpnctl
 | `export.py` | 客户端配置导出（JSON / Share Link / QR） |
 | `watchdog.py` | WARP Watchdog 脚本生成与 crontab 挂载 |
 | `route_profile.py` | 客户端路由规则与 DNS 配置 |
-| `cli_ui.py` | 终端 UI 输出函数 |
+| `ui.py` | 终端 UI 输出函数 |
+| `killswitch.py` | VPS Kill Switch 控制逻辑 |
 
 ---
 

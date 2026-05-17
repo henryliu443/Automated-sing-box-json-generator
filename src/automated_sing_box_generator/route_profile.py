@@ -75,7 +75,7 @@ def _merge_unique(*groups):
     return merged
 
 
-def build_dns_config(hosts):
+def build_dns_config(hosts, compact=False):
     """
     1.12.0+ 迁移重点：
     - 为拨号 DNS (如 DoH) 显式指定 domain_resolver
@@ -90,26 +90,31 @@ def build_dns_config(hosts):
         }
     ]
 
-    direct_exact = _merge_unique(SKIP_PROXY_DOMAINS, DNS_DIRECT_ONLY_DOMAINS, DIRECT_EXACT)
-    direct_suffix = _merge_unique(SKIP_PROXY_SUFFIXES, DNS_DIRECT_ONLY_SUFFIXES, DIRECT_SUFFIX)
-    proxy_suffix = _merge_unique(APNS_PROXY_SUFFIXES, PROXY_SUFFIX)
+    if compact:
+        # Compact mode: only basic rules and rule_sets
+        if USE_GEOIP_CN:
+            rules.append({"rule_set": "geosite-cn", "server": "dns-direct"})
+    else:
+        direct_exact = _merge_unique(SKIP_PROXY_DOMAINS, DNS_DIRECT_ONLY_DOMAINS, DIRECT_EXACT)
+        direct_suffix = _merge_unique(SKIP_PROXY_SUFFIXES, DNS_DIRECT_ONLY_SUFFIXES, DIRECT_SUFFIX)
+        proxy_suffix = _merge_unique(APNS_PROXY_SUFFIXES, PROXY_SUFFIX)
 
-    rules.append({"domain_suffix": APNS_PROXY_SUFFIXES, "server": "dns-remote"})
-    if direct_exact:
-        rules.append({"domain": direct_exact, "server": "dns-direct"})
-    if PROXY_EXACT:
-        rules.append({"domain": PROXY_EXACT, "server": "dns-remote"})
-    if direct_suffix:
-        rules.append({"domain_suffix": direct_suffix, "server": "dns-direct"})
-    if proxy_suffix:
-        rules.append({"domain_suffix": proxy_suffix, "server": "dns-remote"})
-    if DIRECT_KEYWORD:
-        rules.append({"domain_keyword": DIRECT_KEYWORD, "server": "dns-direct"})
-    if PROXY_KEYWORD:
-        rules.append({"domain_keyword": PROXY_KEYWORD, "server": "dns-remote"})
+        rules.append({"domain_suffix": APNS_PROXY_SUFFIXES, "server": "dns-remote"})
+        if direct_exact:
+            rules.append({"domain": direct_exact, "server": "dns-direct"})
+        if PROXY_EXACT:
+            rules.append({"domain": PROXY_EXACT, "server": "dns-remote"})
+        if direct_suffix:
+            rules.append({"domain_suffix": direct_suffix, "server": "dns-direct"})
+        if proxy_suffix:
+            rules.append({"domain_suffix": proxy_suffix, "server": "dns-remote"})
+        if DIRECT_KEYWORD:
+            rules.append({"domain_keyword": DIRECT_KEYWORD, "server": "dns-direct"})
+        if PROXY_KEYWORD:
+            rules.append({"domain_keyword": PROXY_KEYWORD, "server": "dns-remote"})
 
-    if USE_GEOIP_CN:
-        rules.append({"rule_set": "geosite-cn", "server": "dns-direct"})
+        if USE_GEOIP_CN:
+            rules.append({"rule_set": "geosite-cn", "server": "dns-direct"})
 
     direct_dns_servers = [
         {
@@ -142,7 +147,7 @@ def build_dns_config(hosts):
     }
 
 
-def build_route_config(sniff_inbound=None):
+def build_route_config(sniff_inbound=None, compact=False):
     """
     1.12.0+ 迁移重点：
     - 增加 default_domain_resolver
@@ -157,28 +162,32 @@ def build_route_config(sniff_inbound=None):
         rules.insert(0, {"inbound": sniff_inbound, "action": "sniff", "timeout": "1s"})
         rules.insert(0, {"inbound": sniff_inbound, "action": "resolve", "strategy": "prefer_ipv4"})
 
-    direct_exact = _merge_unique(SKIP_PROXY_DOMAINS, DIRECT_EXACT)
-    direct_suffix = _merge_unique(SKIP_PROXY_SUFFIXES, DIRECT_SUFFIX)
-    proxy_suffix = _merge_unique(APNS_PROXY_SUFFIXES, PROXY_SUFFIX)
+    if compact:
+        # Compact mode: omit large embedded rule lists
+        pass
+    else:
+        direct_exact = _merge_unique(SKIP_PROXY_DOMAINS, DIRECT_EXACT)
+        direct_suffix = _merge_unique(SKIP_PROXY_SUFFIXES, DIRECT_SUFFIX)
+        proxy_suffix = _merge_unique(APNS_PROXY_SUFFIXES, PROXY_SUFFIX)
 
-    rules.append({"domain_suffix": APNS_PROXY_SUFFIXES, "action": "route", "outbound": "global"})
-    rules.append({"ip_cidr": APNS_PROXY_CIDR, "port": APNS_PROXY_PORTS, "action": "route", "outbound": "global"})
-    if direct_exact:
-        rules.append({"domain": direct_exact, "action": "route", "outbound": DIRECT_RULE_OUTBOUND})
-    if PROXY_EXACT:
-        rules.append({"domain": PROXY_EXACT, "action": "route", "outbound": "global"})
-    if direct_suffix:
-        rules.append({"domain_suffix": direct_suffix, "action": "route", "outbound": DIRECT_RULE_OUTBOUND})
-    if proxy_suffix:
-        rules.append({"domain_suffix": proxy_suffix, "action": "route", "outbound": "global"})
-    if DIRECT_KEYWORD:
-        rules.append({"domain_keyword": DIRECT_KEYWORD, "action": "route", "outbound": DIRECT_RULE_OUTBOUND})
-    if PROXY_KEYWORD:
-        rules.append({"domain_keyword": PROXY_KEYWORD, "action": "route", "outbound": "global"})
-    if DIRECT_CIDR:
-        rules.append({"ip_cidr": DIRECT_CIDR, "action": "route", "outbound": DIRECT_RULE_OUTBOUND})
-    if PROXY_CIDR:
-        rules.append({"ip_cidr": PROXY_CIDR, "action": "route", "outbound": "global"})
+        rules.append({"domain_suffix": APNS_PROXY_SUFFIXES, "action": "route", "outbound": "global"})
+        rules.append({"ip_cidr": APNS_PROXY_CIDR, "port": APNS_PROXY_PORTS, "action": "route", "outbound": "global"})
+        if direct_exact:
+            rules.append({"domain": direct_exact, "action": "route", "outbound": DIRECT_RULE_OUTBOUND})
+        if PROXY_EXACT:
+            rules.append({"domain": PROXY_EXACT, "action": "route", "outbound": "global"})
+        if direct_suffix:
+            rules.append({"domain_suffix": direct_suffix, "action": "route", "outbound": DIRECT_RULE_OUTBOUND})
+        if proxy_suffix:
+            rules.append({"domain_suffix": proxy_suffix, "action": "route", "outbound": "global"})
+        if DIRECT_KEYWORD:
+            rules.append({"domain_keyword": DIRECT_KEYWORD, "action": "route", "outbound": DIRECT_RULE_OUTBOUND})
+        if PROXY_KEYWORD:
+            rules.append({"domain_keyword": PROXY_KEYWORD, "action": "route", "outbound": "global"})
+        if DIRECT_CIDR:
+            rules.append({"ip_cidr": DIRECT_CIDR, "action": "route", "outbound": DIRECT_RULE_OUTBOUND})
+        if PROXY_CIDR:
+            rules.append({"ip_cidr": PROXY_CIDR, "action": "route", "outbound": "global"})
 
     route = {
         "rules": rules,

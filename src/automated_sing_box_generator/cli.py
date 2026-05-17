@@ -153,8 +153,8 @@ def build_parser():
     p_config.set_defaults(func=cmd_config)
 
     p_export = sub.add_parser("export", help="导出客户端配置")
-    p_export.add_argument("--format", choices=["json", "link", "qr"], default="json",
-                          help="导出格式 (默认 json)")
+    p_export.add_argument("--format", choices=["json", "link", "qr", "qr-json"], default="json",
+                          help="导出格式 (default: json)")
     p_export.add_argument("--output", type=str, default=None,
                           help="输出文件路径 (仅 json 格式)")
     p_export.set_defaults(func=cmd_export)
