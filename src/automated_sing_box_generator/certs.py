@@ -2,9 +2,9 @@ import os
 import shlex
 import subprocess
 
-import cli_ui as ui
-from config import ALL_PROTOCOLS, PROTOCOL_DEFS
-from installer import SINGBOX_SERVICE, run_cmd
+from . import ui
+from .config import ALL_PROTOCOLS, PROTOCOL_DEFS
+from .installer import SINGBOX_SERVICE, run_cmd
 
 ACME_SH_PATH = "/root/.acme.sh/acme.sh"
 ACME_INSTALL_URL = "https://get.acme.sh"

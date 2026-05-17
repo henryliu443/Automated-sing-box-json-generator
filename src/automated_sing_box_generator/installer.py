@@ -9,7 +9,7 @@ import time
 import urllib.error
 import urllib.request
 
-import cli_ui as ui
+from . import ui
 
 WARP_SERVICE = "warp-svc"
 LEGACY_WARP_SERVICES = ("warp-go",)

@@ -1,7 +1,7 @@
 import os
 import subprocess
 
-import cli_ui as ui
+from . import ui
 
 
 def build_watchdog_script(warp_mode="proxy"):

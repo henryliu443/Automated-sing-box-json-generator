@@ -7,7 +7,7 @@ import os
 import subprocess
 import textwrap
 
-import cli_ui as ui
+from . import ui
 
 
 VPNKS_NFT_PATH = "/etc/nftables.d/vpn-killswitch.nft"

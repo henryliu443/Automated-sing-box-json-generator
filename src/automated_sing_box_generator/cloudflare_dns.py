@@ -5,7 +5,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-import cli_ui as ui
+from . import ui
 
 CF_API_BASE = "https://api.cloudflare.com/client/v4"
 MANAGED_COMMENT = "managed:sing-box-deploy"
