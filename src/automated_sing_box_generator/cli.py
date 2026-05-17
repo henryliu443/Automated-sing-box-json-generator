@@ -12,6 +12,9 @@ from . import cloudflare_dns as cf_dns
 from . import certs
 from . import watchdog
 from . import state as state_mod
+from . import doctor
+from . import validate
+from . import benchmark
 
 def _parse_protocols(value):
     if not value:
@@ -73,6 +76,15 @@ def cmd_decode_qr_json(args):
 
 def cmd_status(args):
     deploy.show_status()
+
+def cmd_doctor(args):
+    doctor.run_doctor()
+
+def cmd_validate(args):
+    validate.run_validate()
+
+def cmd_benchmark(args):
+    benchmark.run_benchmark()
 
 def cmd_vpn(args):
     try:
@@ -142,7 +154,7 @@ def build_parser():
     )
     sub = parser.add_subparsers(dest="command")
 
-    p_deploy = sub.add_parser("deploy", help="完整部署 (安装依赖 + 生成配置 + 启动)")
+    p_deploy = sub.add_parser("deploy", help="完整部署 (安装依赖 + 生成配置 +启动)")
     p_deploy.add_argument("--protocols", type=str, default=None,
                           help="启用的协议 (逗号分隔, 如 anytls,tuic,hy2)")
     p_deploy.add_argument("--domain", type=str, default=None, help="主域名")
@@ -178,6 +190,15 @@ def build_parser():
 
     p_status = sub.add_parser("status", help="检查服务状态")
     p_status.set_defaults(func=cmd_status)
+
+    p_doctor = sub.add_parser("doctor", help="运行系统和依赖状态诊断检查")
+    p_doctor.set_defaults(func=cmd_doctor)
+
+    p_validate = sub.add_parser("validate", help="校验生成配置语法的正确性")
+    p_validate.set_defaults(func=cmd_validate)
+
+    p_benchmark = sub.add_parser("benchmark", help="对代理节点进行速度和延迟测试")
+    p_benchmark.set_defaults(func=cmd_benchmark)
 
     p_vpn = sub.add_parser("vpn", help="管理 VPS VPN ON/OFF kill switch")
     p_vpn.add_argument("action", choices=["install", "on", "off", "status", "refresh"],

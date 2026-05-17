@@ -41,6 +41,9 @@ automated-sing-box-generator deploy
 | `automated-sing-box-generator export` | 导出客户端配置（`--format json\|link\|qr\|qr-json`，`--output` 指定文件） |
 | `automated-sing-box-generator decode-qr-json` | 还原 `qr-json` 压缩或分片二维码扫描结果 |
 | `automated-sing-box-generator status` | 查看部署状态和服务健康度 |
+| `automated-sing-box-generator doctor` | 运行系统和依赖状态诊断检查 |
+| `automated-sing-box-generator validate` | 校验生成配置语法的正确性 |
+| `automated-sing-box-generator benchmark` | 对代理节点进行速度和延迟测试 |
 | `automated-sing-box-generator vpn install/on/off/status/refresh` | 安装并控制 VPS 出站 Kill Switch（不管理 SSH 入站） |
 | `automated-sing-box-generator install` | 仅安装依赖（WARP、sing-box） |
 | `automated-sing-box-generator update` | 更新 sing-box 到最新版本 |
