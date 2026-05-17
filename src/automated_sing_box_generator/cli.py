@@ -152,6 +152,15 @@ def build_parser():
         prog="automated-sing-box-generator",
         description="Sing-box 自动部署工具",
     )
+    
+    try:
+        from importlib.metadata import version
+        __version__ = version("automated-sing-box-generator")
+    except Exception:
+        __version__ = "0.2.0" # fallback
+
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    
     sub = parser.add_subparsers(dest="command")
 
     p_deploy = sub.add_parser("deploy", help="完整部署 (安装依赖 + 生成配置 +启动)")
