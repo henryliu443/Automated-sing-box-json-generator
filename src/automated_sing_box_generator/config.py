@@ -1,6 +1,6 @@
 import os
 
-from route_profile import TUN_EXCLUDED_ROUTES, build_dns_config, build_route_config
+from .route_profile import TUN_EXCLUDED_ROUTES, build_dns_config, build_route_config
 
 
 REALITY_SERVER_ENV = "REALITY_SERVER"

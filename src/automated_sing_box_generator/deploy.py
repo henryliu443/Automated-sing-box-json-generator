@@ -4,10 +4,10 @@ import re
 import subprocess
 from typing import Any, Optional
 
-from certs import ensure_tls_certificates, needs_tls_certificates
-from cloudflare_dns import detect_public_ipv4, sync_dns_records
-import cli_ui as ui
-from config import (
+from .certs import ensure_tls_certificates, needs_tls_certificates
+from .cloudflare_dns import detect_public_ipv4, sync_dns_records
+from . import ui
+from .config import (
     ALL_PROTOCOLS,
     HY2_MASQUERADE_ENV,
     PROTOCOL_DEFS,
@@ -19,11 +19,11 @@ from config import (
     get_reality_decoy_server,
     protocol_ports,
 )
-from credentials import gen_subdomain_prefixes, generate_credentials
-from installer import ensure_dependencies, ensure_port_safety, print_port_snapshot
-from killswitch import deploy_killswitch_assets, killswitch_status
-import state as state_mod
-from watchdog import deploy_watchdog
+from .credentials import gen_subdomain_prefixes, generate_credentials
+from .installer import ensure_dependencies, ensure_port_safety, print_port_snapshot
+from .killswitch import deploy_killswitch_assets, killswitch_status
+from . import state as state_mod
+from .watchdog import deploy_watchdog
 
 DOMAIN_RE = re.compile(
     r"^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$"
@@ -418,7 +418,7 @@ def show_status():
     else:
         ui.warning("未找到部署状态")
 
-    from installer import get_singbox_version, warp_proxy_ready, warp_tunnel_ready
+    from .installer import get_singbox_version, warp_proxy_ready, warp_tunnel_ready
 
     ui.section("服务状态")
     version = get_singbox_version()

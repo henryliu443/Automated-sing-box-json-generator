@@ -2,13 +2,13 @@ import json
 import sys
 from urllib.parse import urlencode
 
-import cli_ui as ui
-from config import (
+from . import ui
+from .config import (
     PROTOCOL_DEFS,
     build_client_config,
     get_reality_decoy_server,
 )
-from state import load_state
+from .state import load_state
 
 
 def _require_state():
