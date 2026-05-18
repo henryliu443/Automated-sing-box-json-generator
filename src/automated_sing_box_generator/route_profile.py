@@ -22,6 +22,7 @@ DNS_REMOTE_PATH = "/dns-query"
 DNS_REMOTE_TLS_SERVER_NAME = "cloudflare-dns.com"
 GEOIP_CN_RULESET_URL = "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geoip/cn.srs"
 GEOSITE_CN_RULESET_URL = "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/cn.srs"
+GEOSITE_GEOLOCATION_NON_CN_RULESET_URL = "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/geolocation-!cn.srs"
 
 SKIP_PROXY_DOMAINS = ["localhost", "captive.apple.com"]
 SKIP_PROXY_SUFFIXES = ["local"]
@@ -114,6 +115,7 @@ def build_dns_config(hosts, compact=False):
             rules.append({"domain_keyword": PROXY_KEYWORD, "server": "dns-remote"})
 
         if USE_GEOIP_CN:
+            rules.append({"rule_set": "geosite-geolocation-!cn", "server": "dns-remote"})
             rules.append({"rule_set": "geosite-cn", "server": "dns-direct"})
 
     direct_dns_servers = [
@@ -171,13 +173,17 @@ def build_route_config(sniff_inbound=None, compact=False):
         proxy_suffix = _merge_unique(APNS_PROXY_SUFFIXES, PROXY_SUFFIX)
 
         rules.append({"domain_suffix": APNS_PROXY_SUFFIXES, "action": "route", "outbound": "global"})
-        rules.append({"ip_cidr": APNS_PROXY_CIDR, "port": APNS_PROXY_PORTS, "action": "route", "outbound": "global"})
         if direct_exact:
             rules.append({"domain": direct_exact, "action": "route", "outbound": DIRECT_RULE_OUTBOUND})
         if PROXY_EXACT:
             rules.append({"domain": PROXY_EXACT, "action": "route", "outbound": "global"})
         if direct_suffix:
             rules.append({"domain_suffix": direct_suffix, "action": "route", "outbound": DIRECT_RULE_OUTBOUND})
+        
+        # APNs IP rule must come after direct_suffix so that known Apple direct domains (like music.apple.com)
+        # going to 17.x.x.x:443 aren't hijacked by the APNs proxy rule.
+        rules.append({"ip_cidr": APNS_PROXY_CIDR, "port": APNS_PROXY_PORTS, "action": "route", "outbound": "global"})
+        
         if proxy_suffix:
             rules.append({"domain_suffix": proxy_suffix, "action": "route", "outbound": "global"})
         if DIRECT_KEYWORD:
@@ -200,6 +206,13 @@ def build_route_config(sniff_inbound=None, compact=False):
         route["rule_set"] = [
             {
                 "type": "remote",
+                "tag": "geosite-geolocation-!cn",
+                "format": "binary",
+                "url": GEOSITE_GEOLOCATION_NON_CN_RULESET_URL,
+                "download_detour": "direct",
+            },
+            {
+                "type": "remote",
                 "tag": "geosite-cn",
                 "format": "binary",
                 "url": GEOSITE_CN_RULESET_URL,
@@ -213,6 +226,9 @@ def build_route_config(sniff_inbound=None, compact=False):
                 "download_detour": "direct",
             },
         ]
+        route["rules"].append(
+            {"rule_set": "geosite-geolocation-!cn", "action": "route", "outbound": "global"}
+        )
         route["rules"].append(
             {"rule_set": "geosite-cn", "action": "route", "outbound": DIRECT_RULE_OUTBOUND}
         )

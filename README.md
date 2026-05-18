@@ -170,37 +170,6 @@ cat scans.txt | automated-sing-box-generator decode-qr-json --input - --output c
 - 自动识别本地代理模式（`127.0.0.1:40000`）与系统隧道模式
 - 集成 Watchdog 守护脚本，每分钟检测 WARP 健康状态，自动重连/重注册
 
-### VPS Kill Switch
-
-部署时会安装 `vpnctl`、`vpn-safety-refresh` 与 `vpn-killswitch.service`，用于控制 VPS 主动出站流量：
-
-```bash
-vpnctl on
-vpnctl status
-vpnctl off
-vpnctl refresh
-```
-
-控制结构：
-
-```text
-vpnctl
-  ├── state machine
-  ├── backend router       -> sing-box
-  ├── firewall controller  -> nft
-  └── health monitor       -> WARP / sing-box / firewall
-```
-
-设计约束：
-
-- 不修改 sshd 配置
-- 不限制 SSH 来源 IP
-- 不修改 input 默认策略
-- 只创建独立 nftables 表 `inet vpnks`
-- `engage.cloudflareclient.com` 会在 VPS 上解析后写入 nft set
-- VPN 状态只由 `vpnctl` 输出，nft/systemd/sing-box 不参与状态决策
-- VPN 异常时普通公网出站会被阻断，但 SSH 入站/回包保持放行
-
 ### 其他
 
 - TLS 证书通过 acme.sh + Cloudflare DNS-01 自动签发和续签
@@ -252,7 +221,6 @@ vpnctl
 | `watchdog.py` | WARP Watchdog 脚本生成与 crontab 挂载 |
 | `route_profile.py` | 客户端路由规则与 DNS 配置 |
 | `ui.py` | 终端 UI 输出函数 |
-| `killswitch.py` | VPS Kill Switch 控制逻辑 |
 
 ---
 
