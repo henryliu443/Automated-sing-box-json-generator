@@ -356,8 +356,9 @@ def build_client_outbounds(creds, hosts, enabled_protocols=None, fingerprint_opt
             "tag": CLIENT_PROXY_AUTO_TAG,
             "outbounds": outbound_tags,
             "url": URLTEST_URL,
-            "interval": "10m",
+            "interval": "3m",
             "tolerance": 50,
+            "interrupt_exist_connections": True,
         },
     ]
 

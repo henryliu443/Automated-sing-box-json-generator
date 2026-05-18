@@ -365,7 +365,9 @@
     "icloud.com.cn",
     "me.com",
     "mzstatic.com",
-    "ykimg.com"
+    "ykimg.com",
+    "apple.com",
+    "itunes.com"
   ],
   "proxy_suffix": [
     "apple-relay.akamaized.net",
@@ -373,7 +375,6 @@
     "apple-relay.cloudflare.com",
     "apple-relay.fastly-edge.com",
     "apple-relay.mask.apple-dns.net",
-    "apple.com",
     "push.apple.com",
     "battle.net",
     "blizzard.com",

@@ -1,12 +1,14 @@
 import argparse
 import os
 import sys
+import subprocess
+import urllib.request
+import json
 
 from . import ui
 from . import deploy
 from . import config as cfg
 from . import installer
-from . import killswitch
 from . import export
 from . import cloudflare_dns as cf_dns
 from . import certs
@@ -15,6 +17,30 @@ from . import state as state_mod
 from . import doctor
 from . import validate
 from . import benchmark
+
+def check_tool_update():
+    """检查本项目在 GitHub 上是否有更新"""
+    try:
+        # 获取本地 git commit
+        res = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, timeout=1)
+        if res.returncode != 0:
+            return # 不是 git 仓库或者没安装 git
+        local_sha = res.stdout.strip()
+        
+        # 获取远程最新 commit
+        req = urllib.request.Request(
+            "https://api.github.com/repos/henryliu443/Automated-sing-box-json-generator/commits/main",
+            headers={"User-Agent": "Update-Checker"}
+        )
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            remote_sha = data.get("sha", "")
+            
+        if remote_sha and not remote_sha.startswith(local_sha):
+            ui.warning("检测到工具更新: 发现新版本代码！")
+            ui.info("建议运行 `git pull` 获取最新更新。")
+    except Exception:
+        pass # 忽略网络或检查失败
 
 def _parse_protocols(value):
     if not value:
@@ -85,21 +111,6 @@ def cmd_validate(args):
 
 def cmd_benchmark(args):
     benchmark.run_benchmark()
-
-def cmd_vpn(args):
-    try:
-        if args.action == "install":
-            ui.banner("VPN Kill Switch", "安装 vpnctl 与 nftables 独立规则")
-            killswitch.deploy_killswitch_assets()
-            return
-
-        if not os.path.isfile(killswitch.VPNCTL_PATH):
-            raise RuntimeError("vpnctl 尚未安装，请先运行: automated-sing-box-generator vpn install")
-
-        os.execv(killswitch.VPNCTL_PATH, [killswitch.VPNCTL_PATH, args.action])
-    except RuntimeError as e:
-        ui.error(str(e))
-        sys.exit(1)
 
 def cmd_update(args):
     ui.banner("更新 sing-box", "检查并安装最新版本")
@@ -209,11 +220,6 @@ def build_parser():
     p_benchmark = sub.add_parser("benchmark", help="对代理节点进行速度和延迟测试")
     p_benchmark.set_defaults(func=cmd_benchmark)
 
-    p_vpn = sub.add_parser("vpn", help="管理 VPS VPN ON/OFF kill switch")
-    p_vpn.add_argument("action", choices=["install", "on", "off", "status", "refresh"],
-                        help="install 安装控制脚本；on/off/status/refresh 调用 vpnctl")
-    p_vpn.set_defaults(func=cmd_vpn)
-
     p_update = sub.add_parser("update", help="更新 sing-box 到最新版本")
     p_update.set_defaults(func=cmd_update)
 
@@ -229,6 +235,8 @@ def build_parser():
     return parser
 
 def main():
+    check_tool_update()
+    
     parser = build_parser()
     args = parser.parse_args()
 
