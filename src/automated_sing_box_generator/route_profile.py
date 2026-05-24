@@ -176,7 +176,7 @@ def build_route_config(sniff_inbound=None, enabled_protocols=None):
 
     if sniff_inbound:
         rules.insert(0, {"inbound": sniff_inbound, "action": "sniff", "timeout": "1s"})
-        rules.insert(0, {"inbound": sniff_inbound, "action": "resolve", "domain_strategy": "prefer_ipv4"})
+        rules.insert(0, {"inbound": sniff_inbound, "action": "resolve", "strategy": "prefer_ipv4"})
 
     direct_exact = _merge_unique(SKIP_PROXY_DOMAINS, rules_data["direct_exact"])
     direct_suffix = _merge_unique(SKIP_PROXY_SUFFIXES, rules_data["direct_suffix"])
