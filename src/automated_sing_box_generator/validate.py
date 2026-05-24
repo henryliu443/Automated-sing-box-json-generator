@@ -79,3 +79,5 @@ def run_validate():
         ui.error("Configuration validation failed. Please check the errors above.")
     else:
         ui.success("All configuration checks passed!")
+
+    return has_errors

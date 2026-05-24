@@ -44,10 +44,12 @@ automated-sing-box-generator deploy
 | `automated-sing-box-generator doctor` | 运行系统和依赖状态诊断检查 |
 | `automated-sing-box-generator validate` | 校验生成配置语法的正确性 |
 | `automated-sing-box-generator benchmark` | 对代理节点进行速度和延迟测试 |
-| `automated-sing-box-generator vpn install/on/off/status/refresh` | 安装并控制 VPS 出站 Kill Switch（不管理 SSH 入站） |
 | `automated-sing-box-generator install` | 仅安装依赖（WARP、sing-box） |
 | `automated-sing-box-generator update` | 更新 sing-box 到最新版本 |
-| `automated-sing-box-generator cleanup-dns` | 删除所有由本工具创建 of Cloudflare DNS 记录 |
+| `automated-sing-box-generator cleanup-dns`| 删除由于本工具产生的冗余 Cloudflare 域名解析记录 |
+| `automated-sing-box-generator certs`      | TLS 证书强制维护/续签任务，自动配置 ACME |
+| `automated-sing-box-generator uninstall`  | 完整卸载工具部署的所有组件（可带 `--remove-warp`） |
+| `automated-sing-box-generator redeploy`   | 保留域名，重新生成全部随机凭据并重部署 |
 
 ### 示例
 

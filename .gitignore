@@ -9,3 +9,10 @@ deploy-state.json
 .env.*
 build/
 dist/
+venv/
+.venv/
+test_venv/
+*.egg-info/
+*.egg
+.pytest_cache/
+.mypy_cache/

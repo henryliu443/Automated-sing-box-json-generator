@@ -4,7 +4,7 @@ import subprocess
 
 from . import ui
 from .config import ALL_PROTOCOLS, PROTOCOL_DEFS
-from .installer import SINGBOX_SERVICE, run_cmd
+from .installer import SINGBOX_SERVICE, command_exists, run_cmd
 
 ACME_SH_PATH = "/root/.acme.sh/acme.sh"
 ACME_INSTALL_URL = "https://get.acme.sh"
@@ -17,18 +17,6 @@ ACME_RELOAD_CMD = f"systemctl try-restart {SINGBOX_SERVICE} >/dev/null 2>&1 || t
 
 def _q(value):
     return shlex.quote(value)
-
-
-def _command_exists(cmd):
-    result = subprocess.run(
-        f"command -v {_q(cmd)} >/dev/null 2>&1",
-        shell=True,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        text=True,
-    )
-    return result.returncode == 0
-
 
 def _ensure_dns_credentials(cf_token=None, cf_zone_id=None):
     token = (cf_token or os.environ.get(CF_TOKEN_ENV, "")).strip()
@@ -79,18 +67,18 @@ def _cert_is_valid_for_host(cert_path, host):
 
 
 def _ensure_openssl():
-    if _command_exists("openssl"):
+    if command_exists("openssl"):
         return
 
     ui.step("安装 openssl (证书校验依赖)")
-    if _command_exists("apt-get"):
+    if command_exists("apt-get"):
         run_cmd("DEBIAN_FRONTEND=noninteractive apt-get update")
         run_cmd("DEBIAN_FRONTEND=noninteractive apt-get install -y openssl")
         return
-    if _command_exists("dnf"):
+    if command_exists("dnf"):
         run_cmd("dnf install -y openssl")
         return
-    if _command_exists("yum"):
+    if command_exists("yum"):
         run_cmd("yum install -y openssl")
         return
 
@@ -100,7 +88,7 @@ def _ensure_openssl():
 def _resolve_acme_sh():
     if os.path.isfile(ACME_SH_PATH):
         return ACME_SH_PATH
-    if _command_exists("acme.sh"):
+    if command_exists("acme.sh"):
         return "acme.sh"
 
     ui.step("安装 acme.sh")
@@ -108,7 +96,7 @@ def _resolve_acme_sh():
 
     if os.path.isfile(ACME_SH_PATH):
         return ACME_SH_PATH
-    if _command_exists("acme.sh"):
+    if command_exists("acme.sh"):
         return "acme.sh"
     raise RuntimeError("acme.sh 安装失败")
 
@@ -117,17 +105,21 @@ def _issue_cert(acme_sh, host, cf_token, cf_zone_id):
     """Run acme.sh --issue with real-time output.
 
     Exit code 2 means cert already valid (skip) — not an error.
+    Credentials are passed via environment variables (not command line)
+    to avoid exposure in `ps aux` output.
     """
     cmd = (
-        f"{CF_TOKEN_ENV}={_q(cf_token)} {CF_ZONE_ID_ENV}={_q(cf_zone_id)} "
         f"{_q(acme_sh)} --issue --dns dns_cf -d {_q(host)} "
         f"--keylength ec-256 --server {ACME_CA}"
     )
     ui.command(cmd)
+    child_env = os.environ.copy()
+    child_env[CF_TOKEN_ENV] = cf_token
+    child_env[CF_ZONE_ID_ENV] = cf_zone_id
     proc = subprocess.Popen(
         cmd, shell=True,
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-        bufsize=1,
+        bufsize=1, env=child_env,
     )
     lines = []
     assert proc.stdout is not None

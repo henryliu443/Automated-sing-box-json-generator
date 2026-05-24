@@ -34,15 +34,15 @@ def load_state():
         return json.load(f)
 
 
-def _sanitize_json_value(value):
+def sanitize_json_value(value):
     if isinstance(value, str):
         return re.sub(r"[\ud800-\udfff]", "\uFFFD", value)
     if isinstance(value, dict):
-        return { _sanitize_json_value(key): _sanitize_json_value(val) for key, val in value.items() }
+        return { sanitize_json_value(key): sanitize_json_value(val) for key, val in value.items() }
     if isinstance(value, list):
-        return [_sanitize_json_value(item) for item in value]
+        return [sanitize_json_value(item) for item in value]
     if isinstance(value, tuple):
-        return tuple(_sanitize_json_value(item) for item in value)
+        return tuple(sanitize_json_value(item) for item in value)
     return value
 
 
@@ -53,4 +53,4 @@ def save_state(data):
     os.makedirs(os.path.dirname(STATE_PATH), mode=0o700, exist_ok=True)
     fd = os.open(STATE_PATH, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w", encoding="utf-8") as f:
-        json.dump(_sanitize_json_value(data), f, indent=2, ensure_ascii=False)
+        json.dump(sanitize_json_value(data), f, indent=2, ensure_ascii=False)

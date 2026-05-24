@@ -429,7 +429,7 @@ def build_server_config(creds, protocol_hosts=None, warp_mode="proxy", enabled_p
     }
 
 
-def build_client_config(creds, protocol_hosts=None, enabled_protocols=None, server_ip=None, fingerprint_opts=None, compact=False):
+def build_client_config(creds, protocol_hosts=None, enabled_protocols=None, server_ip=None, fingerprint_opts=None):
     if not protocol_hosts:
         raise ValueError("protocol_hosts is required")
     if enabled_protocols is None:
@@ -443,7 +443,7 @@ def build_client_config(creds, protocol_hosts=None, enabled_protocols=None, serv
             "level": "debug",
             "timestamp": True,
         },
-        "dns": build_dns_config(hosts, compact=compact),
+        "dns": build_dns_config(hosts, enabled_protocols=enabled_protocols),
         "inbounds": [
             {
                 "type": "tun",
@@ -457,7 +457,7 @@ def build_client_config(creds, protocol_hosts=None, enabled_protocols=None, serv
             }
         ],
         "outbounds": build_client_outbounds(creds, hosts, enabled_protocols, fingerprint_opts),
-        "route": build_route_config(sniff_inbound=CLIENT_TUN_INBOUND_TAG, compact=compact),
+        "route": build_route_config(sniff_inbound=CLIENT_TUN_INBOUND_TAG, enabled_protocols=enabled_protocols),
     }
 
 

@@ -1,3 +1,4 @@
+import functools
 import json
 from pathlib import Path
 
@@ -8,13 +9,6 @@ _REQUIRED_BUCKETS = (
     "direct_keyword", "proxy_keyword",
     "direct_cidr", "proxy_cidr",
 )
-
-_rules = json.loads(_RULES_PATH.read_text())
-for _key in _REQUIRED_BUCKETS:
-    if _key not in _rules:
-        raise KeyError(f"rules.json missing required key: {_key}")
-    if not isinstance(_rules[_key], list):
-        raise TypeError(f"rules.json[{_key!r}] must be a list, got {type(_rules[_key]).__name__}")
 
 DNS_DIRECT_SERVER = ["223.5.5.5", "119.29.29.29"]
 DNS_REMOTE_SERVER = "1.1.1.1"
@@ -47,24 +41,28 @@ TUN_EXCLUDED_ROUTES = [
     "192.168.0.0/16",
 ]
 
-DIRECT_EXACT   = _rules["direct_exact"]
-PROXY_EXACT    = _rules["proxy_exact"]
-DIRECT_SUFFIX  = _rules["direct_suffix"]
-PROXY_SUFFIX   = _rules["proxy_suffix"]
-DIRECT_KEYWORD = _rules["direct_keyword"]
-PROXY_KEYWORD  = _rules["proxy_keyword"]
-DIRECT_CIDR    = _rules["direct_cidr"]
-PROXY_CIDR     = _rules["proxy_cidr"]
-
-IGNORED_RULES = [
-    "IP-ASN,132203,DIRECT,no-resolve", "USER-AGENT,Line*,PROXY",
-]
-
 ROUTE_FINAL = "route-mode"
 # Direct rule targets follow route-mode so switching to `global` can truly
 # proxy domains listed in direct_* buckets (e.g. baidu.com).
 DIRECT_RULE_OUTBOUND = ROUTE_FINAL
 USE_GEOIP_CN = True
+
+
+@functools.lru_cache(maxsize=1)
+def _load_rules():
+    """Lazy-load and validate rules.json on first access."""
+    rules = json.loads(_RULES_PATH.read_text())
+    for key in _REQUIRED_BUCKETS:
+        if key not in rules:
+            raise KeyError(f"rules.json missing required key: {key}")
+        if not isinstance(rules[key], list):
+            raise TypeError(f"rules.json[{key!r}] must be a list, got {type(rules[key]).__name__}")
+    return rules
+
+
+def _get_rules():
+    """Return the loaded rules dict."""
+    return _load_rules()
 
 
 def _merge_unique(*groups):
@@ -76,7 +74,23 @@ def _merge_unique(*groups):
     return merged
 
 
-def build_dns_config(hosts, compact=False):
+def _protocol_host_domains(hosts, enabled_protocols=None):
+    """Build the list of protocol host domains for DNS rules.
+
+    Only includes hosts for protocols that are actually enabled.
+    """
+    if enabled_protocols is None:
+        return [h for h in hosts.values()]
+    from .config import PROTOCOL_DEFS
+    domains = []
+    for proto in enabled_protocols:
+        host_key = PROTOCOL_DEFS[proto]["host_key"]
+        if host_key in hosts:
+            domains.append(hosts[host_key])
+    return domains
+
+
+def build_dns_config(hosts, enabled_protocols=None):
     """
     1.12.0+ 迁移重点：
     - 为拨号 DNS (如 DoH) 显式指定 domain_resolver
@@ -84,39 +98,37 @@ def build_dns_config(hosts, compact=False):
     if not hosts:
         raise ValueError("hosts is required")
 
-    rules = [
-        {
-            "domain": [hosts["reality"], hosts["tuic"], hosts["hy2"]],
+    rules = _load_rules()
+
+    proto_domains = _protocol_host_domains(hosts, enabled_protocols)
+    dns_rules = []
+    if proto_domains:
+        dns_rules.append({
+            "domain": proto_domains,
             "server": "dns-direct",
-        }
-    ]
+        })
 
-    if compact:
-        # Compact mode: only basic rules and rule_sets
-        if USE_GEOIP_CN:
-            rules.append({"rule_set": "geosite-cn", "server": "dns-direct"})
-    else:
-        direct_exact = _merge_unique(SKIP_PROXY_DOMAINS, DNS_DIRECT_ONLY_DOMAINS, DIRECT_EXACT)
-        direct_suffix = _merge_unique(SKIP_PROXY_SUFFIXES, DNS_DIRECT_ONLY_SUFFIXES, DIRECT_SUFFIX)
-        proxy_suffix = _merge_unique(APNS_PROXY_SUFFIXES, PROXY_SUFFIX)
+    direct_exact = _merge_unique(SKIP_PROXY_DOMAINS, DNS_DIRECT_ONLY_DOMAINS, rules["direct_exact"])
+    direct_suffix = _merge_unique(SKIP_PROXY_SUFFIXES, DNS_DIRECT_ONLY_SUFFIXES, rules["direct_suffix"])
+    proxy_suffix = _merge_unique(APNS_PROXY_SUFFIXES, rules["proxy_suffix"])
 
-        rules.append({"domain_suffix": APNS_PROXY_SUFFIXES, "server": "dns-remote"})
-        if direct_exact:
-            rules.append({"domain": direct_exact, "server": "dns-direct"})
-        if PROXY_EXACT:
-            rules.append({"domain": PROXY_EXACT, "server": "dns-remote"})
-        if direct_suffix:
-            rules.append({"domain_suffix": direct_suffix, "server": "dns-direct"})
-        if proxy_suffix:
-            rules.append({"domain_suffix": proxy_suffix, "server": "dns-remote"})
-        if DIRECT_KEYWORD:
-            rules.append({"domain_keyword": DIRECT_KEYWORD, "server": "dns-direct"})
-        if PROXY_KEYWORD:
-            rules.append({"domain_keyword": PROXY_KEYWORD, "server": "dns-remote"})
+    dns_rules.append({"domain_suffix": APNS_PROXY_SUFFIXES, "server": "dns-remote"})
+    if direct_exact:
+        dns_rules.append({"domain": direct_exact, "server": "dns-direct"})
+    if rules["proxy_exact"]:
+        dns_rules.append({"domain": rules["proxy_exact"], "server": "dns-remote"})
+    if direct_suffix:
+        dns_rules.append({"domain_suffix": direct_suffix, "server": "dns-direct"})
+    if proxy_suffix:
+        dns_rules.append({"domain_suffix": proxy_suffix, "server": "dns-remote"})
+    if rules["direct_keyword"]:
+        dns_rules.append({"domain_keyword": rules["direct_keyword"], "server": "dns-direct"})
+    if rules["proxy_keyword"]:
+        dns_rules.append({"domain_keyword": rules["proxy_keyword"], "server": "dns-remote"})
 
-        if USE_GEOIP_CN:
-            rules.append({"rule_set": "geosite-geolocation-!cn", "server": "dns-remote"})
-            rules.append({"rule_set": "geosite-cn", "server": "dns-direct"})
+    if USE_GEOIP_CN:
+        dns_rules.append({"rule_set": "geosite-geolocation-!cn", "server": "dns-remote"})
+        dns_rules.append({"rule_set": "geosite-cn", "server": "dns-direct"})
 
     direct_dns_servers = [
         {
@@ -143,17 +155,19 @@ def build_dns_config(hosts, compact=False):
                 "domain_resolver": "dns-direct",
             },
         ],
-        "rules": rules,
+        "rules": dns_rules,
         "final": "dns-remote",
         "strategy": "prefer_ipv4",
     }
 
 
-def build_route_config(sniff_inbound=None, compact=False):
+def build_route_config(sniff_inbound=None, enabled_protocols=None):
     """
     1.12.0+ 迁移重点：
     - 增加 default_domain_resolver
     """
+    rules_data = _load_rules()
+
     rules = [
         {"protocol": "dns", "action": "hijack-dns"},
         {"ip_is_private": True, "action": "route", "outbound": "direct"},
@@ -164,36 +178,32 @@ def build_route_config(sniff_inbound=None, compact=False):
         rules.insert(0, {"inbound": sniff_inbound, "action": "sniff", "timeout": "1s"})
         rules.insert(0, {"inbound": sniff_inbound, "action": "resolve", "strategy": "prefer_ipv4"})
 
-    if compact:
-        # Compact mode: omit large embedded rule lists
-        pass
-    else:
-        direct_exact = _merge_unique(SKIP_PROXY_DOMAINS, DIRECT_EXACT)
-        direct_suffix = _merge_unique(SKIP_PROXY_SUFFIXES, DIRECT_SUFFIX)
-        proxy_suffix = _merge_unique(APNS_PROXY_SUFFIXES, PROXY_SUFFIX)
+    direct_exact = _merge_unique(SKIP_PROXY_DOMAINS, rules_data["direct_exact"])
+    direct_suffix = _merge_unique(SKIP_PROXY_SUFFIXES, rules_data["direct_suffix"])
+    proxy_suffix = _merge_unique(APNS_PROXY_SUFFIXES, rules_data["proxy_suffix"])
 
-        rules.append({"domain_suffix": APNS_PROXY_SUFFIXES, "action": "route", "outbound": "global"})
-        if direct_exact:
-            rules.append({"domain": direct_exact, "action": "route", "outbound": DIRECT_RULE_OUTBOUND})
-        if PROXY_EXACT:
-            rules.append({"domain": PROXY_EXACT, "action": "route", "outbound": "global"})
-        if direct_suffix:
-            rules.append({"domain_suffix": direct_suffix, "action": "route", "outbound": DIRECT_RULE_OUTBOUND})
-        
-        # APNs IP rule must come after direct_suffix so that known Apple direct domains (like music.apple.com)
-        # going to 17.x.x.x:443 aren't hijacked by the APNs proxy rule.
-        rules.append({"ip_cidr": APNS_PROXY_CIDR, "port": APNS_PROXY_PORTS, "action": "route", "outbound": "global"})
-        
-        if proxy_suffix:
-            rules.append({"domain_suffix": proxy_suffix, "action": "route", "outbound": "global"})
-        if DIRECT_KEYWORD:
-            rules.append({"domain_keyword": DIRECT_KEYWORD, "action": "route", "outbound": DIRECT_RULE_OUTBOUND})
-        if PROXY_KEYWORD:
-            rules.append({"domain_keyword": PROXY_KEYWORD, "action": "route", "outbound": "global"})
-        if DIRECT_CIDR:
-            rules.append({"ip_cidr": DIRECT_CIDR, "action": "route", "outbound": DIRECT_RULE_OUTBOUND})
-        if PROXY_CIDR:
-            rules.append({"ip_cidr": PROXY_CIDR, "action": "route", "outbound": "global"})
+    rules.append({"domain_suffix": APNS_PROXY_SUFFIXES, "action": "route", "outbound": "global"})
+    if direct_exact:
+        rules.append({"domain": direct_exact, "action": "route", "outbound": DIRECT_RULE_OUTBOUND})
+    if rules_data["proxy_exact"]:
+        rules.append({"domain": rules_data["proxy_exact"], "action": "route", "outbound": "global"})
+    if direct_suffix:
+        rules.append({"domain_suffix": direct_suffix, "action": "route", "outbound": DIRECT_RULE_OUTBOUND})
+
+    # APNs IP rule must come after direct_suffix so that known Apple direct domains (like music.apple.com)
+    # going to 17.x.x.x:443 aren't hijacked by the APNs proxy rule.
+    rules.append({"ip_cidr": APNS_PROXY_CIDR, "port": APNS_PROXY_PORTS, "action": "route", "outbound": "global"})
+
+    if proxy_suffix:
+        rules.append({"domain_suffix": proxy_suffix, "action": "route", "outbound": "global"})
+    if rules_data["direct_keyword"]:
+        rules.append({"domain_keyword": rules_data["direct_keyword"], "action": "route", "outbound": DIRECT_RULE_OUTBOUND})
+    if rules_data["proxy_keyword"]:
+        rules.append({"domain_keyword": rules_data["proxy_keyword"], "action": "route", "outbound": "global"})
+    if rules_data["direct_cidr"]:
+        rules.append({"ip_cidr": rules_data["direct_cidr"], "action": "route", "outbound": DIRECT_RULE_OUTBOUND})
+    if rules_data["proxy_cidr"]:
+        rules.append({"ip_cidr": rules_data["proxy_cidr"], "action": "route", "outbound": "global"})
 
     route = {
         "rules": rules,
@@ -241,9 +251,10 @@ def build_route_config(sniff_inbound=None, compact=False):
 
 def rule_summary():
     """Return a compact string summarising loaded rule counts."""
+    rules = _load_rules()
     parts = [
-        f"direct: {len(DIRECT_EXACT)}exact {len(DIRECT_SUFFIX)}suffix {len(DIRECT_KEYWORD)}kw {len(DIRECT_CIDR)}cidr",
-        f"proxy: {len(PROXY_EXACT)}exact {len(PROXY_SUFFIX)}suffix {len(PROXY_KEYWORD)}kw {len(PROXY_CIDR)}cidr",
+        f"direct: {len(rules['direct_exact'])}exact {len(rules['direct_suffix'])}suffix {len(rules['direct_keyword'])}kw {len(rules['direct_cidr'])}cidr",
+        f"proxy: {len(rules['proxy_exact'])}exact {len(rules['proxy_suffix'])}suffix {len(rules['proxy_keyword'])}kw {len(rules['proxy_cidr'])}cidr",
     ]
     if USE_GEOIP_CN:
         parts.append("geosite-cn + geoip-cn")

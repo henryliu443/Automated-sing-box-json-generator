@@ -22,6 +22,7 @@ from .config import (
 from .credentials import gen_subdomain_prefixes, generate_credentials
 from .installer import ensure_dependencies, ensure_port_safety, print_port_snapshot
 from . import state as state_mod
+from .state import sanitize_json_value
 from .watchdog import deploy_watchdog
 
 DOMAIN_RE = re.compile(
@@ -63,20 +64,6 @@ def normalize_domain_input(raw):
         raise RuntimeError(f"域名格式不合法: {domain}")
     return domain
 
-
-def _sanitize_json_value(value: Any):
-    if isinstance(value, str):
-        return re.sub(r"[\ud800-\udfff]", "\uFFFD", value)
-    if isinstance(value, dict):
-        return {
-            _sanitize_json_value(key): _sanitize_json_value(val)
-            for key, val in value.items()
-        }
-    if isinstance(value, list):
-        return [_sanitize_json_value(item) for item in value]
-    if isinstance(value, tuple):
-        return tuple(_sanitize_json_value(item) for item in value)
-    return value
 
 
 def resolve_cf_dns_credentials():
@@ -183,7 +170,7 @@ def write_server_config(server_config: dict[str, Any], path=SING_BOX_CONFIG_PATH
     os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w", encoding="utf-8") as f:
-        json.dump(_sanitize_json_value(server_config), f, indent=2, ensure_ascii=False)
+        json.dump(sanitize_json_value(server_config), f, indent=2, ensure_ascii=False)
 
 
 def activate_server_config(target=SING_BOX_WARP_CONFIG_PATH, link_path=SING_BOX_CONFIG_PATH):
@@ -332,6 +319,85 @@ def deploy(domain_root=None, enabled_protocols=None, fingerprint_overrides=None)
     ui.section("守护任务")
     ui.step(f"部署 watchdog: {WATCHDOG_SCRIPT_PATH}")
     deploy_watchdog(WATCHDOG_SCRIPT_PATH, warp_mode=warp_mode)
+    restart_services_and_verify(warp_mode, pports)
+    print_success_result(client_config, phosts, warp_mode, enabled_protocols, fingerprint_opts=protocol_inputs)
+
+
+def redeploy(enabled_protocols=None):
+    old_state = state_mod.load_state()
+    if not old_state:
+        raise RuntimeError("未找到先前的部署状态，无法重新部署，请使用 deploy。")
+
+    domain_root = old_state["domain_root"]
+    if enabled_protocols is None:
+        enabled_protocols = old_state.get("enabled_protocols", ALL_PROTOCOLS)
+    protocol_inputs = old_state.get("anti_detection", {})
+    warp_mode = old_state.get("warp_mode", "proxy")
+    preferred_warp_mode = old_state.get("preferred_warp_mode")
+
+    cf_token, cf_zone_id = resolve_cf_dns_credentials()
+    prefixes = gen_subdomain_prefixes()
+    ui.info("已生成全新的随机子域名前缀")
+    phosts = build_protocol_hosts(domain_root, prefixes)
+    pports = protocol_ports(enabled_protocols)
+
+    ui.section("DNS 记录同步")
+    server_ip = old_state.get("server_ip") or detect_public_ipv4()
+    old_record_ids = old_state.get("dns_record_ids")
+    dns_record_ids = sync_dns_records(
+        cf_zone_id, cf_token,
+        _desired_fqdns(phosts, enabled_protocols),
+        server_ip, old_record_ids,
+    )
+
+    need_certs = needs_tls_certificates(enabled_protocols)
+    if need_certs:
+        ui.section("证书签发")
+        run_tls_issuance(phosts, cf_token, cf_zone_id, enabled_protocols)
+    else:
+        ui.info("所有启用的协议均不需要 TLS 证书，跳过签发")
+
+    ui.section("配置生成")
+    ui.step("重新生成随机安全凭据 (UUID、密码等)...")
+    creds = generate_credentials()
+    
+    server_config_warp = build_server_config(
+        creds, phosts, warp_mode=warp_mode, enabled_protocols=enabled_protocols,
+        fingerprint_opts=protocol_inputs,
+    )
+    server_config_direct = build_server_config(
+        creds, phosts, warp_mode="none", enabled_protocols=enabled_protocols,
+        fingerprint_opts=protocol_inputs,
+    )
+    client_config = build_client_config(
+        creds,
+        protocol_hosts=phosts,
+        enabled_protocols=enabled_protocols,
+        server_ip=server_ip,
+        fingerprint_opts=protocol_inputs,
+    )
+
+    ui.step(f"写入服务端配置: {SING_BOX_CONFIG_PATH}")
+    write_server_config(server_config_warp, SING_BOX_WARP_CONFIG_PATH)
+    write_server_config(server_config_direct, SING_BOX_DIRECT_CONFIG_PATH)
+    activate_server_config()
+    _clean_legacy_configs()
+
+    ui.section("保存部署状态")
+    state_mod.save_state({
+        "domain_root": domain_root,
+        "subdomain_prefixes": prefixes,
+        "protocol_hosts": phosts,
+        "enabled_protocols": enabled_protocols,
+        "credentials": creds,
+        "warp_mode": warp_mode,
+        "server_ip": server_ip,
+        "dns_record_ids": dns_record_ids,
+        "anti_detection": protocol_inputs,
+        "preferred_warp_mode": preferred_warp_mode,
+    })
+    ui.success("部署状态已保存")
+
     restart_services_and_verify(warp_mode, pports)
     print_success_result(client_config, phosts, warp_mode, enabled_protocols, fingerprint_opts=protocol_inputs)
 

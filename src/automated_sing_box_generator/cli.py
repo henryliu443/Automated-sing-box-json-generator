@@ -92,13 +92,7 @@ def cmd_export(args):
         ui.error(str(e))
         sys.exit(1)
 
-def cmd_decode_qr_json(args):
-    ui.banner("还原 QR JSON", "解码 SBOX:ZLIB45 压缩或分片载荷")
-    try:
-        export.decode_qr_json(input_path=args.input, output=args.output, tokens=args.tokens)
-    except RuntimeError as e:
-        ui.error(str(e))
-        sys.exit(1)
+
 
 def cmd_status(args):
     deploy.show_status()
@@ -158,6 +152,30 @@ def cmd_watchdog(args):
         ui.error(str(e))
         sys.exit(1)
 
+def cmd_uninstall(args):
+    ui.banner("警告", "此操作将移除由本工具部署的所有组件 (包括配置、证书、systemd服务、定时任务等)")
+    if not ui.confirm("此操作不可恢复，是否继续？"):
+        ui.info("已取消卸载。")
+        sys.exit(0)
+    try:
+        from . import uninstall
+        uninstall.run_uninstall(remove_warp=args.remove_warp)
+    except Exception as e:
+        ui.error(f"卸载过程中发生错误: {e}")
+        sys.exit(1)
+
+def cmd_redeploy(args):
+    ui.banner("重新部署", "保留域名和协议，生成全新随机凭据")
+    if not ui.confirm("此操作将更新所有配置及凭据，旧客户端配置将失效。是否继续？"):
+        ui.info("已取消重新部署。")
+        sys.exit(0)
+    try:
+        protocols = [p.strip() for p in args.protocols.split(",")] if args.protocols else None
+        deploy.redeploy(enabled_protocols=protocols)
+    except RuntimeError as e:
+        ui.error(str(e))
+        sys.exit(1)
+
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="automated-sing-box-generator",
@@ -193,20 +211,13 @@ def build_parser():
     p_config.set_defaults(func=cmd_config)
 
     p_export = sub.add_parser("export", help="导出客户端配置")
-    p_export.add_argument("--format", choices=["json", "link", "qr", "qr-json"], default="json",
+    p_export.add_argument("--format", choices=["json", "link"], default="json",
                           help="导出格式 (default: json)")
     p_export.add_argument("--output", type=str, default=None,
                           help="输出文件路径 (仅 json 格式)")
     p_export.set_defaults(func=cmd_export)
 
-    p_decode = sub.add_parser("decode-qr-json", help="还原 qr-json 压缩/分片扫描结果")
-    p_decode.add_argument("tokens", nargs="*",
-                          help="扫描得到的 QR 文本；也可使用 --input 从文件或 stdin 读取")
-    p_decode.add_argument("--input", "-i", type=str, default=None,
-                          help="包含扫描结果的文本文件；使用 '-' 表示 stdin")
-    p_decode.add_argument("--output", "-o", type=str, default=None,
-                          help="输出 JSON 文件路径")
-    p_decode.set_defaults(func=cmd_decode_qr_json)
+
 
     p_status = sub.add_parser("status", help="检查服务状态")
     p_status.set_defaults(func=cmd_status)
@@ -231,6 +242,15 @@ def build_parser():
 
     p_watchdog = sub.add_parser("watchdog", help="手动部署/更新 WARP Watchdog 守护脚本")
     p_watchdog.set_defaults(func=cmd_watchdog)
+
+    p_uninstall = sub.add_parser("uninstall", help="完整卸载工具部署的所有组件")
+    p_uninstall.add_argument("--remove-warp", action="store_true", help="同时卸载 WARP (cloudflare-warp 软件包)")
+    p_uninstall.set_defaults(func=cmd_uninstall)
+
+    p_redeploy = sub.add_parser("redeploy", help="保留域名，重新生成全部凭据并重新部署")
+    p_redeploy.add_argument("--protocols", type=str, default=None,
+                            help="覆盖原状态的协议列表 (逗号分隔)")
+    p_redeploy.set_defaults(func=cmd_redeploy)
 
     return parser
 

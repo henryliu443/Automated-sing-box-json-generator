@@ -1,7 +1,6 @@
 """Benchmark module for testing proxy latency and download speed."""
 
 import subprocess
-import time
 
 from . import ui
 from .installer import WARP_PROXY_URL, WARP_PROXY_HOST, WARP_PROXY_PORT
@@ -89,10 +88,10 @@ def run_benchmark():
         ui.error("Failed to measure WARP proxy speed")
 
     ui.section("Benchmark Summary")
-    if proxy_ttfb and dir_ttfb:
+    if proxy_ttfb is not None and dir_ttfb is not None:
         overhead = proxy_ttfb - dir_ttfb
         ui.info(f"WARP Latency Overhead: {overhead:.2f} ms")
     
-    if proxy_speed and dir_speed and dir_speed > 0:
+    if proxy_speed is not None and dir_speed is not None and dir_speed > 0:
         ratio = (proxy_speed / dir_speed) * 100
         ui.info(f"WARP Speed Ratio: {ratio:.1f}% of direct speed")
