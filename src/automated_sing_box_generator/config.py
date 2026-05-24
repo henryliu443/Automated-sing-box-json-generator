@@ -389,7 +389,7 @@ def build_server_config(creds, protocol_hosts=None, warp_mode="proxy", enabled_p
             "inbound": PROTOCOL_DEFS["anytls"]["inbound_tag"],
             "action": "resolve",
             "server": SERVER_DNS_TAG,
-            "strategy": "prefer_ipv4",
+            "domain_strategy": "prefer_ipv4",
         })
         rules.append({
             "inbound": PROTOCOL_DEFS["anytls"]["inbound_tag"],
