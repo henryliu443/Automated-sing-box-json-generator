@@ -124,3 +124,5 @@ def run_doctor():
         ui.success("All checks passed. System is healthy.")
     else:
         ui.error(f"Found {issues_found} issue(s) that require attention.")
+
+    return issues_found

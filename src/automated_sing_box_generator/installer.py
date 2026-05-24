@@ -746,119 +746,9 @@ def ensure_warp(preferred_mode=None):
 
 
 def build_singbox_auto_update_script():
-    return """#!/usr/bin/env python3
-import json
-import os
-import platform
-import shutil
-import subprocess
-import tarfile
-import tempfile
-import urllib.request
-
-GITHUB_RELEASE_API = "https://api.github.com/repos/SagerNet/sing-box/releases/latest"
-INSTALL_PATH = "/usr/bin/sing-box"
-SERVICE_NAME = "sing-box"
-ARCH_MAP = {
-    "x86_64": "amd64",
-    "amd64": "amd64",
-    "aarch64": "arm64",
-    "arm64": "arm64",
-    "i386": "386",
-    "i686": "386",
-    "armv7l": "armv7",
-    "armv6l": "armv6",
-    "armv5l": "armv5",
-}
-
-
-def run(cmd):
-    return subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-
-
-def current_version():
-    try:
-        out = run([INSTALL_PATH, "version"]).stdout
-    except Exception:
-        return None
-    first_line = out.splitlines()[0].strip() if out else ""
-    marker = "sing-box version "
-    if marker not in first_line:
-        return None
-    return first_line.split(marker, 1)[1].strip().lstrip("v")
-
-
-def latest_release():
-    req = urllib.request.Request(
-        GITHUB_RELEASE_API,
-        headers={"User-Agent": "singbox-auto-update"},
-    )
-    with urllib.request.urlopen(req, timeout=20) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
-    tag = data.get("tag_name", "").strip()
-    if not tag:
-        raise RuntimeError("cannot parse latest release tag")
-    version = tag.lstrip("v")
-    return tag, version
-
-
-def resolve_asset(version):
-    machine = platform.machine().lower()
-    arch = ARCH_MAP.get(machine)
-    if not arch:
-        raise RuntimeError(f"unsupported arch: {machine}")
-    name = f"sing-box-{version}-linux-{arch}.tar.gz"
-    url = f"https://github.com/SagerNet/sing-box/releases/download/v{version}/{name}"
-    return url, name
-
-
-def install_latest(version):
-    url, name = resolve_asset(version)
-    with tempfile.TemporaryDirectory(prefix="singbox-update-") as tmp:
-        archive_path = os.path.join(tmp, name)
-        urllib.request.urlretrieve(url, archive_path)
-        with tarfile.open(archive_path, "r:gz") as tar:
-            tar.extractall(tmp)
-
-        package_dir = os.path.join(
-            tmp, f"sing-box-{version}-linux-{ARCH_MAP[platform.machine().lower()]}"
-        )
-        src_bin = os.path.join(package_dir, "sing-box")
-        if not os.path.isfile(src_bin):
-            raise RuntimeError(f"binary not found in archive: {src_bin}")
-
-        tmp_bin = f"{INSTALL_PATH}.new"
-        shutil.copy2(src_bin, tmp_bin)
-        os.chmod(tmp_bin, 0o755)
-
-        backup = f"{INSTALL_PATH}.bak"
-        if os.path.isfile(INSTALL_PATH):
-            shutil.copy2(INSTALL_PATH, backup)
-        os.replace(tmp_bin, INSTALL_PATH)
-
-    run([INSTALL_PATH, "version"])
-    run(["systemctl", "restart", SERVICE_NAME])
-
-
-def main():
-    if os.geteuid() != 0:
-        raise SystemExit("must run as root")
-
-    old = current_version()
-    _tag, latest = latest_release()
-    if old == latest:
-        print(f"[skip] sing-box already latest: {latest}")
-        return
-
-    print(f"[update] sing-box {old or 'unknown'} -> {latest}")
-    install_latest(latest)
-    now = current_version()
-    print(f"[done] current version: {now or 'unknown'}")
-
-
-if __name__ == "__main__":
-    main()
-"""
+    template_path = os.path.join(os.path.dirname(__file__), "templates", "singbox_auto_update.py.template")
+    with open(template_path, "r", encoding="utf-8") as f:
+        return f.read()
 
 
 def deploy_singbox_auto_update():
@@ -925,6 +815,7 @@ def ensure_dependencies(protocol_ports=None, preferred_warp_mode=None):
     ensure_ss_tool()
     warp_mode = ensure_warp(preferred_mode=preferred_warp_mode)
     ensure_singbox()
+    deploy_singbox_auto_update()
     ensure_port_safety(warp_mode, protocol_ports, wait_singbox=False)
     print_port_snapshot()
     return warp_mode
