@@ -219,21 +219,27 @@ def build_route_config(sniff_inbound=None, enabled_protocols=None):
                 "tag": "geosite-geolocation-!cn",
                 "format": "binary",
                 "url": GEOSITE_GEOLOCATION_NON_CN_RULESET_URL,
-                "download_detour": "direct",
+                "http_client": {
+                    "detour": "direct",
+                },
             },
             {
                 "type": "remote",
                 "tag": "geosite-cn",
                 "format": "binary",
                 "url": GEOSITE_CN_RULESET_URL,
-                "download_detour": "direct",
+                "http_client": {
+                    "detour": "direct",
+                },
             },
             {
                 "type": "remote",
                 "tag": "geoip-cn",
                 "format": "binary",
                 "url": GEOIP_CN_RULESET_URL,
-                "download_detour": "direct",
+                "http_client": {
+                    "detour": "direct",
+                },
             },
         ]
         route["rules"].append(
