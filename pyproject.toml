@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "automated-sing-box-generator"
-version = "0.3.6"
+version = "0.3.7"
 authors = [
   { name="henryliu443", email="henryliu443@gmail.com" },
 ]
