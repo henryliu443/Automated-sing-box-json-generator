@@ -44,7 +44,8 @@ def _merge_fingerprint_overrides(
     if not overrides:
         return dict(base)
     out = dict(base)
-    for key in (REALITY_SERVER_ENV, REALITY_PORT_ENV, HY2_MASQUERADE_ENV):
+    for key in (REALITY_SERVER_ENV, REALITY_PORT_ENV, HY2_MASQUERADE_ENV,
+                cfg.HY2_UP_MBPS_ENV, cfg.HY2_DOWN_MBPS_ENV):
         v = overrides.get(key)
         if v is not None and str(v).strip():
             out[key] = str(v).strip()

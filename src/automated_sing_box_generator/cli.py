@@ -57,6 +57,10 @@ def cmd_deploy(args):
         fingerprint_overrides[cfg.REALITY_PORT_ENV] = str(args.reality_port)
     if args.hy2_masquerade:
         fingerprint_overrides[cfg.HY2_MASQUERADE_ENV] = args.hy2_masquerade
+    if args.hy2_up is not None:
+        fingerprint_overrides[cfg.HY2_UP_MBPS_ENV] = str(args.hy2_up)
+    if args.hy2_down is not None:
+        fingerprint_overrides[cfg.HY2_DOWN_MBPS_ENV] = str(args.hy2_down)
     if args.server_ip:
         os.environ["SERVER_IP"] = args.server_ip
     sys.exit(deploy.main(
@@ -186,7 +190,7 @@ def build_parser():
         from importlib.metadata import version
         __version__ = version("automated-sing-box-generator")
     except Exception:
-        __version__ = "0.2.1" # fallback
+        __version__ = "0.3.6" # fallback
 
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     
@@ -199,6 +203,8 @@ def build_parser():
     p_deploy.add_argument("--reality-server", type=str, default=None, help="Reality 伪装域名")
     p_deploy.add_argument("--reality-port", type=int, default=None, help="Reality 伪装端口")
     p_deploy.add_argument("--hy2-masquerade", type=str, default=None, help="Hysteria2 masquerade URL")
+    p_deploy.add_argument("--hy2-up", type=int, default=None, help="Hysteria2 上行带宽 (Mbps, 默认 50)")
+    p_deploy.add_argument("--hy2-down", type=int, default=None, help="Hysteria2 下行带宽 (Mbps, 默认 200)")
     p_deploy.add_argument("--server-ip", type=str, default=None, help="VPS 公网 IP (用于客户端 TUN 排除)")
     p_deploy.set_defaults(func=cmd_deploy)
 

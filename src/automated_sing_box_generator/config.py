@@ -6,6 +6,13 @@ from .route_profile import TUN_EXCLUDED_ROUTES, build_dns_config, build_route_co
 REALITY_SERVER_ENV = "REALITY_SERVER"
 REALITY_PORT_ENV = "REALITY_PORT"
 HY2_MASQUERADE_ENV = "HY2_MASQUERADE"
+HY2_UP_MBPS_ENV = "HY2_UP_MBPS"
+HY2_DOWN_MBPS_ENV = "HY2_DOWN_MBPS"
+
+HY2_CLIENT_UP_MBPS_DEFAULT = 50
+HY2_CLIENT_DOWN_MBPS_DEFAULT = 200
+HY2_SERVER_UP_MBPS_DEFAULT = 500
+HY2_SERVER_DOWN_MBPS_DEFAULT = 500
 
 TUIC_CERT_PATH = "/etc/sing-box-tuic/certs/tuic.crt"
 TUIC_KEY_PATH = "/etc/sing-box-tuic/certs/tuic.key"
@@ -65,6 +72,32 @@ def get_hy2_masquerade_url(opts=None):
     if opts.get(HY2_MASQUERADE_ENV):
         return str(opts[HY2_MASQUERADE_ENV]).strip()
     return os.getenv(HY2_MASQUERADE_ENV, "https://www.cloudflare.com").strip() or "https://www.cloudflare.com"
+
+
+def get_hy2_up_mbps(opts=None, server=False):
+    opts = opts or {}
+    default = HY2_SERVER_UP_MBPS_DEFAULT if server else HY2_CLIENT_UP_MBPS_DEFAULT
+    raw = opts.get(HY2_UP_MBPS_ENV) or os.getenv(HY2_UP_MBPS_ENV, "")
+    raw = str(raw).strip()
+    if raw:
+        try:
+            return int(raw)
+        except ValueError:
+            pass
+    return default
+
+
+def get_hy2_down_mbps(opts=None, server=False):
+    opts = opts or {}
+    default = HY2_SERVER_DOWN_MBPS_DEFAULT if server else HY2_CLIENT_DOWN_MBPS_DEFAULT
+    raw = opts.get(HY2_DOWN_MBPS_ENV) or os.getenv(HY2_DOWN_MBPS_ENV, "")
+    raw = str(raw).strip()
+    if raw:
+        try:
+            return int(raw)
+        except ValueError:
+            pass
+    return default
 
 
 PROTOCOL_DEFS = {
@@ -224,8 +257,8 @@ def _build_hy2_server_inbound(creds, hosts, opts=None):
         "listen_port": pdef["server_port"],
         "users": [{"password": creds["pwd_hy2"]}],
         "ignore_client_bandwidth": False,
-        "up_mbps": 1000,
-        "down_mbps": 1000,
+        "up_mbps": get_hy2_up_mbps(opts, server=True),
+        "down_mbps": get_hy2_down_mbps(opts, server=True),
         "obfs": {"type": "salamander", "password": creds["pwd_obfs"]},
         "masquerade": get_hy2_masquerade_url(opts),
         "tls": {
@@ -298,8 +331,8 @@ def _build_hy2_client_outbound(creds, hosts, opts=None):
         "server": hosts["hy2"],
         "domain_resolver": build_domain_resolver(),
         "server_port": PROTOCOL_DEFS["hy2"]["server_port"],
-        "up_mbps": 1000,
-        "down_mbps": 1000,
+        "up_mbps": get_hy2_up_mbps(opts),
+        "down_mbps": get_hy2_down_mbps(opts),
         "obfs": {"type": "salamander", "password": creds["pwd_obfs"]},
         "password": creds["pwd_hy2"],
         "tls": {
@@ -356,8 +389,8 @@ def build_client_outbounds(creds, hosts, enabled_protocols=None, fingerprint_opt
             "tag": CLIENT_PROXY_AUTO_TAG,
             "outbounds": outbound_tags,
             "url": URLTEST_URL,
-            "interval": "3m",
-            "tolerance": 50,
+            "interval": "5m",
+            "tolerance": 150,
             "interrupt_exist_connections": True,
         },
     ]
