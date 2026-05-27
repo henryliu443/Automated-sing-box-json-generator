@@ -80,13 +80,24 @@ def cmd_install(args):
 
 def cmd_config(args):
     protocols = _parse_protocols(args.protocols) if args.protocols else None
-    ui.banner("重新生成配置", "基于当前部署状态更新 config.json")
-    try:
-        deploy.reconfigure(enabled_protocols=protocols)
-        ui.success("配置重新生成并已应用")
-    except RuntimeError as e:
-        ui.error(str(e))
-        sys.exit(1)
+    if getattr(args, 'api', False):
+        ui.banner("重新部署", "保留域名和协议，生成全新随机凭据")
+        if not ui.confirm("此操作将更新所有配置及凭据，旧客户端配置将失效。是否继续？"):
+            ui.info("已取消重新部署。")
+            sys.exit(0)
+        try:
+            deploy.redeploy(enabled_protocols=protocols)
+        except RuntimeError as e:
+            ui.error(str(e))
+            sys.exit(1)
+    else:
+        ui.banner("重新生成配置", "基于当前部署状态更新 config.json")
+        try:
+            deploy.reconfigure(enabled_protocols=protocols)
+            ui.success("配置重新生成并已应用")
+        except RuntimeError as e:
+            ui.error(str(e))
+            sys.exit(1)
 
 def cmd_export(args):
     ui.banner("导出配置", f"格式: {args.format}")
@@ -102,7 +113,14 @@ def cmd_status(args):
     deploy.show_status()
 
 def cmd_doctor(args):
-    doctor.run_doctor()
+    if getattr(args, 'status', False):
+        deploy.show_status()
+    elif getattr(args, 'validate', False):
+        validate.run_validate()
+    elif getattr(args, 'benchmark', False):
+        benchmark.run_benchmark()
+    else:
+        doctor.run_doctor()
 
 def cmd_validate(args):
     validate.run_validate()
@@ -168,18 +186,6 @@ def cmd_uninstall(args):
         ui.error(f"卸载过程中发生错误: {e}")
         sys.exit(1)
 
-def cmd_redeploy(args):
-    ui.banner("重新部署", "保留域名和协议，生成全新随机凭据")
-    if not ui.confirm("此操作将更新所有配置及凭据，旧客户端配置将失效。是否继续？"):
-        ui.info("已取消重新部署。")
-        sys.exit(0)
-    try:
-        protocols = [p.strip() for p in args.protocols.split(",")] if args.protocols else None
-        deploy.redeploy(enabled_protocols=protocols)
-    except RuntimeError as e:
-        ui.error(str(e))
-        sys.exit(1)
-
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="automated-sing-box-generator",
@@ -190,7 +196,7 @@ def build_parser():
         from importlib.metadata import version
         __version__ = version("automated-sing-box-generator")
     except Exception:
-        __version__ = "0.3.8" # fallback
+        __version__ = "0.3.9" # fallback
 
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     
@@ -211,9 +217,10 @@ def build_parser():
     p_install = sub.add_parser("install", help="仅安装依赖 (WARP, sing-box)")
     p_install.set_defaults(func=cmd_install)
 
-    p_config = sub.add_parser("config", help="重新生成并应用配置 (使用已保存的状态)")
+    p_config = sub.add_parser("config", help="管理配置和凭据")
     p_config.add_argument("--protocols", type=str, default=None,
-                          help="启用的协议 (逗号分隔)")
+                          help="覆盖原状态的协议列表 (逗号分隔)")
+    p_config.add_argument("--api", action="store_true", help="重新生成全部凭据并重新部署 (等同于旧版 redeploy)")
     p_config.set_defaults(func=cmd_config)
 
     p_export = sub.add_parser("export", help="导出客户端配置")
@@ -223,40 +230,30 @@ def build_parser():
                           help="输出文件路径 (仅 json 格式)")
     p_export.set_defaults(func=cmd_export)
 
-
-
-    p_status = sub.add_parser("status", help="检查服务状态")
-    p_status.set_defaults(func=cmd_status)
-
-    p_doctor = sub.add_parser("doctor", help="运行系统和依赖状态诊断检查")
+    p_doctor = sub.add_parser("doctor", help="系统诊断与状态检查")
+    p_doctor.add_argument("--status", action="store_true", help="检查服务运行状态")
+    p_doctor.add_argument("--validate", action="store_true", help="校验生成配置语法的正确性")
+    p_doctor.add_argument("--benchmark", action="store_true", help="对代理节点进行速度和延迟测试")
     p_doctor.set_defaults(func=cmd_doctor)
 
-    p_validate = sub.add_parser("validate", help="校验生成配置语法的正确性")
-    p_validate.set_defaults(func=cmd_validate)
-
-    p_benchmark = sub.add_parser("benchmark", help="对代理节点进行速度和延迟测试")
-    p_benchmark.set_defaults(func=cmd_benchmark)
-
-    p_update = sub.add_parser("update", help="更新 sing-box 到最新版本")
+    p_manage = sub.add_parser("manage", help="高级维护工具 (更新、证书、定时任务等)")
+    manage_sub = p_manage.add_subparsers(dest="manage_cmd")
+    
+    p_update = manage_sub.add_parser("update", help="更新 sing-box 到最新版本")
     p_update.set_defaults(func=cmd_update)
-
-    p_cleanup = sub.add_parser("cleanup-dns", help="删除所有由本工具创建的 Cloudflare DNS 记录")
-    p_cleanup.set_defaults(func=cmd_cleanup_dns)
-
-    p_certs = sub.add_parser("certs", help="手动管理/续签 TLS 证书")
+    
+    p_certs = manage_sub.add_parser("certs", help="手动管理/续签 TLS 证书")
     p_certs.set_defaults(func=cmd_certs)
-
-    p_watchdog = sub.add_parser("watchdog", help="手动部署/更新 WARP Watchdog 守护脚本")
+    
+    p_watchdog = manage_sub.add_parser("watchdog", help="手动部署/更新 WARP Watchdog 守护脚本")
     p_watchdog.set_defaults(func=cmd_watchdog)
+    
+    p_cleanup = manage_sub.add_parser("cleanup-dns", help="删除所有由本工具创建的 Cloudflare DNS 记录")
+    p_cleanup.set_defaults(func=cmd_cleanup_dns)
 
     p_uninstall = sub.add_parser("uninstall", help="完整卸载工具部署的所有组件")
     p_uninstall.add_argument("--remove-warp", action="store_true", help="同时卸载 WARP (cloudflare-warp 软件包)")
     p_uninstall.set_defaults(func=cmd_uninstall)
-
-    p_redeploy = sub.add_parser("redeploy", help="保留域名，重新生成全部凭据并重新部署")
-    p_redeploy.add_argument("--protocols", type=str, default=None,
-                            help="覆盖原状态的协议列表 (逗号分隔)")
-    p_redeploy.set_defaults(func=cmd_redeploy)
 
     return parser
 
