@@ -37,19 +37,12 @@ automated-sing-box-generator deploy
 |------|------|
 | `automated-sing-box-generator` | 无参数默认执行完整部署 |
 | `automated-sing-box-generator deploy` | 完整部署（可选 `--domain` / `--protocols`） |
-| `automated-sing-box-generator config` | 使用已保存的状态重新生成配置（可选 `--protocols` 切换协议） |
-| `automated-sing-box-generator export` | 导出客户端配置（`--format json\|link\|qr\|qr-json`，`--output` 指定文件） |
-| `automated-sing-box-generator decode-qr-json` | 还原 `qr-json` 压缩或分片二维码扫描结果 |
-| `automated-sing-box-generator status` | 查看部署状态和服务健康度 |
-| `automated-sing-box-generator doctor` | 运行系统和依赖状态诊断检查 |
-| `automated-sing-box-generator validate` | 校验生成配置语法的正确性 |
-| `automated-sing-box-generator benchmark` | 对代理节点进行速度和延迟测试 |
 | `automated-sing-box-generator install` | 仅安装依赖（WARP、sing-box） |
-| `automated-sing-box-generator update` | 更新 sing-box 到最新版本 |
-| `automated-sing-box-generator cleanup-dns`| 删除由于本工具产生的冗余 Cloudflare 域名解析记录 |
-| `automated-sing-box-generator certs`      | TLS 证书强制维护/续签任务，自动配置 ACME |
+| `automated-sing-box-generator config` | 管理配置和凭据（`--protocols` 切换协议，或 `--api` 重新部署） |
+| `automated-sing-box-generator export` | 导出客户端配置（`--format json\|link\|qr\|qr-json`，`--output` 指定文件） |
+| `automated-sing-box-generator doctor` | 系统诊断与状态检查（可选 `--status` / `--validate` / `--benchmark`） |
+| `automated-sing-box-generator manage` | 高级维护工具（子命令：`update` / `certs` / `watchdog` / `cleanup-dns`） |
 | `automated-sing-box-generator uninstall`  | 完整卸载工具部署的所有组件（可带 `--remove-warp`） |
-| `automated-sing-box-generator redeploy`   | 保留域名，重新生成全部随机凭据并重部署 |
 
 ### 示例
 
@@ -60,7 +53,7 @@ automated-sing-box-generator deploy --domain example.com --protocols anytls,tuic
 # 导出分享链接
 automated-sing-box-generator export --format link
 
-# 导出客户端 JSON 到文件
+# 导出客户端 JSON 到 file
 automated-sing-box-generator export --format json --output client.json
 
 # 导出二维码 (协议分享链接)
@@ -69,11 +62,17 @@ automated-sing-box-generator export --format qr
 # 导出二维码 (完整 JSON 配置)
 automated-sing-box-generator export --format qr-json
 
-# 还原压缩/分片 qr-json 扫描结果
-automated-sing-box-generator decode-qr-json --input scans.txt --output client.json
-
 # 切换到仅 Hysteria2
 automated-sing-box-generator config --protocols hy2
+
+# 重新生成全部凭据并重新部署 (等同于旧版 redeploy)
+automated-sing-box-generator config --api
+
+# 检查服务运行状态 (等同于旧版 status)
+automated-sing-box-generator doctor --status
+
+# 升级 sing-box 版本 (等同于旧版 update)
+automated-sing-box-generator manage update
 ```
 
 ---
