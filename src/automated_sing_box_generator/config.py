@@ -476,6 +476,12 @@ def build_client_config(creds, protocol_hosts=None, enabled_protocols=None, serv
             "level": "debug",
             "timestamp": True,
         },
+        "http_clients": [
+            {
+                "tag": "direct-client",
+                "detour": "direct"
+            }
+        ],
         "dns": build_dns_config(hosts, enabled_protocols=enabled_protocols),
         "inbounds": [
             {
