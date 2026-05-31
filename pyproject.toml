@@ -28,4 +28,4 @@ dependencies = [
 automated-sing-box-generator = "automated_sing_box_generator.cli:main"
 
 [tool.setuptools.package-data]
-automated_sing_box_generator = ["rules.json"]
+automated_sing_box_generator = ["rules.json", "templates/*.template"]
