@@ -174,6 +174,35 @@ def cmd_watchdog(args):
         ui.error(str(e))
         sys.exit(1)
 
+
+def cmd_firewall(args):
+    from . import config as cfg
+    from .firewall import deploy_firewall, remove_firewall, firewall_status
+    remove = getattr(args, 'remove', False)
+    status = getattr(args, 'status', False)
+    if remove:
+        ui.banner("移除网络加固", "移除 nftables singbox_guard 加固规则")
+        try:
+            installer.require_root()
+            remove_firewall()
+        except RuntimeError as e:
+            ui.error(str(e))
+            sys.exit(1)
+    elif status:
+        firewall_status()
+    else:
+        ui.banner("部署网络加固", "配置 nftables OS 网络加固规则")
+        try:
+            installer.require_root()
+            loaded = state_mod.load_state()
+            enabled = loaded.get("enabled_protocols") if loaded else None
+            pports = cfg.protocol_ports(enabled) if enabled else None
+            deploy_firewall(pports)
+            ui.success("网络加固规则已部署")
+        except RuntimeError as e:
+            ui.error(str(e))
+            sys.exit(1)
+
 def cmd_uninstall(args):
     ui.banner("警告", "此操作将移除由本工具部署的所有组件 (包括配置、证书、systemd服务、定时任务等)")
     if not ui.confirm("此操作不可恢复，是否继续？"):
@@ -250,6 +279,11 @@ def build_parser():
     
     p_cleanup = manage_sub.add_parser("cleanup-dns", help="删除所有由本工具创建的 Cloudflare DNS 记录")
     p_cleanup.set_defaults(func=cmd_cleanup_dns)
+
+    p_firewall = manage_sub.add_parser("firewall", help="管理 OS 网络加固 (nftables)")
+    p_firewall.add_argument("--remove", action="store_true", help="移除加固规则")
+    p_firewall.add_argument("--status", action="store_true", help="查看当前加固状态")
+    p_firewall.set_defaults(func=cmd_firewall)
 
     p_uninstall = sub.add_parser("uninstall", help="完整卸载工具部署的所有组件")
     p_uninstall.add_argument("--remove-warp", action="store_true", help="同时卸载 WARP (cloudflare-warp 软件包)")

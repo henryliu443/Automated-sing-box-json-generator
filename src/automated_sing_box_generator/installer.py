@@ -816,6 +816,11 @@ def ensure_dependencies(protocol_ports=None, preferred_warp_mode=None):
     warp_mode = ensure_warp(preferred_mode=preferred_warp_mode)
     ensure_singbox()
     deploy_singbox_auto_update()
+    try:
+        from .firewall import deploy_firewall
+        deploy_firewall(protocol_ports)
+    except Exception as e:
+        ui.warning(f"网络加固配置跳过: {e}")
     ensure_port_safety(warp_mode, protocol_ports, wait_singbox=False)
     print_port_snapshot()
     return warp_mode
