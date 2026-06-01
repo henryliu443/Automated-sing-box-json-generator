@@ -3,7 +3,7 @@
 import subprocess
 
 from . import ui
-from .installer import WARP_PROXY_URL, WARP_PROXY_HOST, WARP_PROXY_PORT
+from .installer import WARP_PROXY_URL, WARP_PROXY_PORT
 
 # A fast and reliable endpoint to test TTFB
 TEST_URL = "https://www.cloudflare.com/cdn-cgi/trace"

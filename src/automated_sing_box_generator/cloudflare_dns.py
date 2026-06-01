@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Cloudflare DNS record management for automated subdomain provisioning."""
 
 import concurrent.futures

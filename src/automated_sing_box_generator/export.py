@@ -1,5 +1,4 @@
 import json
-import sys
 from urllib.parse import urlencode
 
 from . import ui

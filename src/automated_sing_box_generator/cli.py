@@ -11,7 +11,6 @@ from . import config as cfg
 from . import installer
 from . import export
 from . import cloudflare_dns as cf_dns
-from . import certs
 from . import watchdog
 from . import state as state_mod
 from . import doctor
@@ -109,9 +108,6 @@ def cmd_export(args):
 
 
 
-def cmd_status(args):
-    deploy.show_status()
-
 def cmd_doctor(args):
     if getattr(args, 'status', False):
         deploy.show_status()
@@ -121,13 +117,6 @@ def cmd_doctor(args):
         benchmark.run_benchmark()
     else:
         doctor.run_doctor()
-
-def cmd_validate(args):
-    validate.run_validate()
-
-def cmd_benchmark(args):
-    benchmark.run_benchmark()
-
 def cmd_update(args):
     ui.banner("更新 sing-box", "检查并安装最新版本")
     try:

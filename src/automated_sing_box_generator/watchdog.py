@@ -2,7 +2,6 @@ import os
 import subprocess
 from pathlib import Path
 
-from . import ui
 
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
 _WATCHDOG_TEMPLATE = _TEMPLATE_DIR / "warp_watchdog.sh.template"
