@@ -60,11 +60,6 @@ def _load_rules():
     return rules
 
 
-def _get_rules():
-    """Return the loaded rules dict."""
-    return _load_rules()
-
-
 def _merge_unique(*groups):
     merged = []
     for group in groups:
@@ -248,14 +243,3 @@ def build_route_config(sniff_inbound=None, enabled_protocols=None):
 
     return route
 
-
-def rule_summary():
-    """Return a compact string summarising loaded rule counts."""
-    rules = _load_rules()
-    parts = [
-        f"direct: {len(rules['direct_exact'])}exact {len(rules['direct_suffix'])}suffix {len(rules['direct_keyword'])}kw {len(rules['direct_cidr'])}cidr",
-        f"proxy: {len(rules['proxy_exact'])}exact {len(rules['proxy_suffix'])}suffix {len(rules['proxy_keyword'])}kw {len(rules['proxy_cidr'])}cidr",
-    ]
-    if USE_GEOIP_CN:
-        parts.append("geosite-cn + geoip-cn")
-    return " | ".join(parts)
