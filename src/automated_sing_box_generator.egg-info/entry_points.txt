@@ -1,2 +1,0 @@
-[console_scripts]
-automated-sing-box-generator = automated_sing_box_generator.cli:main
