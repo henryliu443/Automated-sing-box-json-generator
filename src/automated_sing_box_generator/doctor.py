@@ -119,6 +119,17 @@ def run_doctor():
         ui.error("Config file: /etc/sing-box/config.json missing")
         issues_found += 1
 
+    ui.section("4. Network Hardening (Firewall)")
+
+    # Check nftables singbox_guard table
+    try:
+        from .firewall import firewall_status
+        active = firewall_status()
+        if not active:
+            ui.info("可运行 'automated-sing-box-generator manage firewall' 来部署加固规则")
+    except Exception as e:
+        ui.warning(f"防火墙状态检查失败: {e}")
+
     ui.section("Diagnostic Summary")
     if issues_found == 0:
         ui.success("All checks passed. System is healthy.")

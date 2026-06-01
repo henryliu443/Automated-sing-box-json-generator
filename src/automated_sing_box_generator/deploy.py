@@ -295,6 +295,7 @@ def deploy(domain_root=None, enabled_protocols=None, fingerprint_overrides=None)
     if "hy2" in enabled_protocols:
         ui.success("Bandwidth shaping (hy2)")
     ui.success("Protocol-aware parameter injection")
+    ui.success("OS-level network hardening (nftables)")
 
     ui.step(f"写入服务端配置: {SING_BOX_CONFIG_PATH}")
     write_server_config(server_config_warp, SING_BOX_WARP_CONFIG_PATH)

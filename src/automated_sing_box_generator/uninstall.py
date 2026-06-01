@@ -46,19 +46,27 @@ def run_uninstall(remove_warp=False):
     if os.path.exists(SINGBOX_AUTO_UPDATE_SCRIPT):
         os.remove(SINGBOX_AUTO_UPDATE_SCRIPT)
 
-    # 5. Clean Cloudflare DNS
+    # 5. Remove firewall rules
+    ui.step("移除 nftables 网络加固规则...")
+    try:
+        from .firewall import remove_firewall
+        remove_firewall()
+    except Exception as e:
+        ui.warning(f"清理防火墙规则失败: {e}")
+
+    # 6. Clean Cloudflare DNS
     ui.step("清理 Cloudflare DNS 记录...")
     try:
         cleanup_all_managed_records()
     except Exception as e:
         ui.warning(f"清理 DNS 记录失败: {e}")
 
-    # 6. Remove TLS Certs
+    # 7. Remove TLS Certs
     ui.step("移除 TLS 证书目录...")
     if os.path.exists("/etc/sing-box-certs"):
         shutil.rmtree("/etc/sing-box-certs", ignore_errors=True)
 
-    # 7. Remove sing-box config dir
+    # 8. Remove sing-box config dir
     ui.step("移除 sing-box 配置目录...")
     if os.path.exists("/etc/sing-box"):
         shutil.rmtree("/etc/sing-box", ignore_errors=True)
