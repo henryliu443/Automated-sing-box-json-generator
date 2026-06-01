@@ -57,7 +57,9 @@ def run_uninstall(remove_warp=False):
     # 6. Clean Cloudflare DNS
     ui.step("清理 Cloudflare DNS 记录...")
     try:
-        cleanup_all_managed_records()
+        from .deploy import resolve_cf_dns_credentials
+        cf_token, cf_zone_id = resolve_cf_dns_credentials()
+        cleanup_all_managed_records(cf_zone_id, cf_token)
     except Exception as e:
         ui.warning(f"清理 DNS 记录失败: {e}")
 
