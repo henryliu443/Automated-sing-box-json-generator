@@ -28,7 +28,6 @@ URLTEST_URL = "https://cp.cloudflare.com/generate_204"
 CLIENT_TUN_STACK = "gvisor"
 CLIENT_TUN_ADDRESSES = [
     "172.19.0.1/30",
-    "fdfe:dcba:9876::1/126",
 ]
 
 
@@ -493,6 +492,7 @@ def build_client_config(creds, protocol_hosts=None, enabled_protocols=None, serv
                 "strict_route": True,
                 "route_exclude_address": _client_tun_route_exclude(server_ip),
                 "stack": CLIENT_TUN_STACK,
+                "mtu": 1280,
             }
         ],
         "outbounds": build_client_outbounds(creds, hosts, enabled_protocols, fingerprint_opts),
