@@ -210,3 +210,12 @@ def select_protocols(available):
     if not selected:
         return [name for name, _ in available]
     return selected
+
+
+def confirm(message, default=False):
+    hint = "[Y/n]" if default else "[y/N]"
+    result = prompt(f"{message} {hint}").strip().lower()
+    if not result:
+        return default
+    return result in ("y", "yes")
+

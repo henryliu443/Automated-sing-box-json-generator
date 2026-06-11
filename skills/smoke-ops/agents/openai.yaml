@@ -1,0 +1,4 @@
+interface:
+  display_name: "Smoke Ops"
+  short_description: "Follow safe smoke-test, VPS, Docker, and release procedures."
+  default_prompt: "Use smoke-ops when performing smoke tests, server operations, Docker verification, or release validation for this project."

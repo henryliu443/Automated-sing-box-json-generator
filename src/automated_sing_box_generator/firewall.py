@@ -51,8 +51,8 @@ SSHD_CONFIG_D = "/etc/ssh/sshd_config.d"
 
 # Conservative SSH rate limiting defaults (intentionally permissive).
 # No fixed IP assumptions: users connect from home/school/mobile/VPN/abroad.
-SSH_RATELIMIT_INTERVAL = "60"    # seconds
-SSH_RATELIMIT_BURST = "15"       # new connections per interval per source IP
+SSH_RATELIMIT_INTERVAL = "minute"    # interval unit (second, minute, hour, day)
+SSH_RATELIMIT_BURST = "15"           # new connections per interval per source IP
 
 # ---------------------------------------------------------------------------
 # SSH port detection
@@ -241,10 +241,10 @@ def _build_nft_ruleset(
         "        ip6 nexthdr icmpv6 icmpv6 type 139 drop",
         "",
         "        # --- SSH rate limiting ---",
-        f"        # Conservative: {ssh_ratelimit_burst} new connections per {ssh_ratelimit_interval}s per source IP.",
+        f"        # Conservative: {ssh_ratelimit_burst} new connections per {ssh_ratelimit_interval} per source IP.",
         "        # No IP whitelist — users connect from home/school/mobile/VPN/abroad.",
         f"        tcp dport {ssh_port} ct state new \\",
-        f"            limit rate over {ssh_ratelimit_burst}/{ssh_ratelimit_interval}second burst {ssh_ratelimit_burst} packets \\",
+        f"            limit rate over {ssh_ratelimit_burst}/{ssh_ratelimit_interval} burst {ssh_ratelimit_burst} packets \\",
         "            drop",
         "",
     ]
