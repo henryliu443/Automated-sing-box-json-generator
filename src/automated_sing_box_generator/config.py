@@ -312,7 +312,7 @@ def _build_tuic_client_outbound(creds, hosts, opts=None):
         "uuid": creds["uuid"],
         "password": creds["pwd_tuic"],
         "congestion_control": "bbr",
-        "udp_relay_mode": "quic",
+        "udp_relay_mode": "native",
         "zero_rtt_handshake": False,
         "heartbeat": "10s",
         "tls": {
@@ -398,7 +398,7 @@ def build_client_outbounds(creds, hosts, enabled_protocols=None, fingerprint_opt
         result.append(_CLIENT_OUTBOUND_BUILDERS[proto](creds, hosts, fingerprint_opts))
 
     result.append({"type": "direct", "tag": CLIENT_ROUTE_TAG})
-    result.append({"type": "direct", "tag": "direct"})
+    result.append({"type": "direct", "tag": "direct", "domain_strategy": "prefer_ipv4"})
     result.append({"type": "block", "tag": "block"})
     return result
 
