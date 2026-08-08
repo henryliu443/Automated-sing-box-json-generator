@@ -706,6 +706,10 @@ def ensure_singbox_service():
 
 
 def ensure_warp(preferred_mode=None):
+    if preferred_mode == "none":
+        ui.info("WARP 模式为 direct (none)，跳过 WARP 安装与检查")
+        return "none"
+
     if preferred_mode not in (None, "proxy", "tun"):
         raise RuntimeError(f"不支持的 WARP 模式: {preferred_mode}")
 

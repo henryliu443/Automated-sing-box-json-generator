@@ -127,11 +127,22 @@ def prompt_server_ip():
 
 def prompt_warp_mode():
     ui.section("WARP 模式")
-    raw = ui.prompt("请选择 WARP 模式 [proxy/tun] (默认 proxy)").strip().lower()
+    env_mode = (os.environ.get("WARP_MODE") or "").strip().lower()
+    if env_mode:
+        if env_mode in {"direct", "none"}:
+            ui.info(f"使用环境变量 WARP_MODE: {env_mode} -> none")
+            return "none"
+        if env_mode in {"proxy", "tun"}:
+            ui.info(f"使用环境变量 WARP_MODE: {env_mode}")
+            return env_mode
+
+    raw = ui.prompt("请选择 WARP 模式 [proxy/tun/direct] (默认 proxy)").strip().lower()
     if not raw:
         return "proxy"
     if raw in {"proxy", "tun"}:
         return raw
+    if raw in {"direct", "none"}:
+        return "none"
     ui.warning(f"无效模式 {raw}，将使用默认 proxy")
     return "proxy"
 
@@ -303,7 +314,7 @@ def deploy(domain_root=None, enabled_protocols=None, fingerprint_overrides=None)
     ui.step(f"写入服务端配置: {SING_BOX_CONFIG_PATH}")
     write_server_config(server_config_warp, SING_BOX_WARP_CONFIG_PATH)
     write_server_config(server_config_direct, SING_BOX_DIRECT_CONFIG_PATH)
-    activate_server_config()
+    activate_server_config(target=SING_BOX_DIRECT_CONFIG_PATH if warp_mode == "none" else SING_BOX_WARP_CONFIG_PATH)
     _clean_legacy_configs()
 
     ui.section("保存部署状态")
@@ -322,8 +333,11 @@ def deploy(domain_root=None, enabled_protocols=None, fingerprint_overrides=None)
     ui.success("部署状态已保存")
 
     ui.section("守护任务")
-    ui.step(f"部署 watchdog: {WATCHDOG_SCRIPT_PATH}")
-    deploy_watchdog(WATCHDOG_SCRIPT_PATH, warp_mode=warp_mode)
+    if warp_mode == "none":
+        ui.info("WARP 为直连模式 (none)，跳过 Watchdog 部署")
+    else:
+        ui.step(f"部署 watchdog: {WATCHDOG_SCRIPT_PATH}")
+        deploy_watchdog(WATCHDOG_SCRIPT_PATH, warp_mode=warp_mode)
     restart_services_and_verify(warp_mode, pports)
     print_success_result(client_config, phosts, warp_mode, enabled_protocols, fingerprint_opts=protocol_inputs)
 
@@ -385,7 +399,7 @@ def redeploy(enabled_protocols=None):
     ui.step(f"写入服务端配置: {SING_BOX_CONFIG_PATH}")
     write_server_config(server_config_warp, SING_BOX_WARP_CONFIG_PATH)
     write_server_config(server_config_direct, SING_BOX_DIRECT_CONFIG_PATH)
-    activate_server_config()
+    activate_server_config(target=SING_BOX_DIRECT_CONFIG_PATH if warp_mode == "none" else SING_BOX_WARP_CONFIG_PATH)
     _clean_legacy_configs()
 
     ui.section("保存部署状态")
@@ -458,7 +472,7 @@ def reconfigure(enabled_protocols=None):
     ui.step(f"写入服务端配置: {SING_BOX_CONFIG_PATH}")
     write_server_config(server_config_warp, SING_BOX_WARP_CONFIG_PATH)
     write_server_config(server_config_direct, SING_BOX_DIRECT_CONFIG_PATH)
-    activate_server_config()
+    activate_server_config(target=SING_BOX_DIRECT_CONFIG_PATH if warp_mode == "none" else SING_BOX_WARP_CONFIG_PATH)
     _clean_legacy_configs()
 
     loaded["enabled_protocols"] = enabled_protocols
@@ -470,11 +484,13 @@ def reconfigure(enabled_protocols=None):
 
 def show_status():
     loaded = state_mod.load_state()
+    warp_mode = loaded.get("warp_mode", "?") if loaded else "?"
     if loaded:
         ui.section("部署状态")
         ui.kv("域名", loaded.get("domain_root", "?"))
         ui.kv("协议", ", ".join(loaded.get("enabled_protocols", [])))
-        ui.kv("WARP 模式", loaded.get("warp_mode", "?"))
+        warp_display = "direct (无 WARP)" if warp_mode == "none" else warp_mode
+        ui.kv("WARP 模式", warp_display)
         ui.kv("服务器 IP", loaded.get("server_ip", "?"))
         ui.kv("部署时间", loaded.get("deployed_at", "?"))
 
@@ -495,7 +511,9 @@ def show_status():
     else:
         ui.error("sing-box 未安装或不可用")
 
-    if warp_proxy_ready():
+    if warp_mode == "none":
+        ui.info("WARP: 直连模式 (无 WARP)")
+    elif warp_proxy_ready():
         ui.success("WARP: 本地代理模式正常")
     elif warp_tunnel_ready():
         ui.success("WARP: 系统隧道模式正常")
