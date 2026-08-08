@@ -49,6 +49,9 @@ def _parse_protocols(value):
 def cmd_deploy(args):
     protocols = _parse_protocols(args.protocols) if args.protocols else None
     domain = args.domain or None
+    if getattr(args, "warp_mode", None):
+        warp_mode = "none" if args.warp_mode == "direct" else args.warp_mode
+        os.environ["WARP_MODE"] = warp_mode
     fingerprint_overrides = {}
     if args.reality_server:
         fingerprint_overrides[cfg.REALITY_SERVER_ENV] = args.reality_server
@@ -157,6 +160,9 @@ def cmd_watchdog(args):
     try:
         loaded = state_mod.load_state()
         warp_mode = loaded.get("warp_mode", "proxy") if loaded else "proxy"
+        if warp_mode == "none":
+            ui.info("WARP 为直连模式 (none)，跳过 Watchdog 部署")
+            return
         watchdog.deploy_watchdog(deploy.WATCHDOG_SCRIPT_PATH, warp_mode=warp_mode)
         ui.success("Watchdog 守护脚本已部署")
     except RuntimeError as e:
@@ -224,6 +230,8 @@ def build_parser():
     p_deploy.add_argument("--protocols", type=str, default=None,
                           help="启用的协议 (逗号分隔, 如 anytls,tuic,hy2)")
     p_deploy.add_argument("--domain", type=str, default=None, help="主域名")
+    p_deploy.add_argument("--warp-mode", choices=["proxy", "tun", "direct", "none"], default=None,
+                          help="WARP 模式 (proxy, tun, direct, none)")
     p_deploy.add_argument("--reality-server", type=str, default=None, help="Reality 伪装域名")
     p_deploy.add_argument("--reality-port", type=int, default=None, help="Reality 伪装端口")
     p_deploy.add_argument("--hy2-masquerade", type=str, default=None, help="Hysteria2 masquerade URL")

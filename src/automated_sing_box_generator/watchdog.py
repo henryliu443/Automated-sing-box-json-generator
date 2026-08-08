@@ -30,6 +30,8 @@ check_warp_data_plane() {
 
 
 def build_watchdog_script(warp_mode="proxy"):
+    if warp_mode == "none":
+        return None
     if warp_mode == "proxy":
         check_block = _WARP_CHECK_PROXY
     elif warp_mode == "tun":
@@ -44,8 +46,13 @@ def build_watchdog_script(warp_mode="proxy"):
 
 
 def deploy_watchdog(script_path="/root/warp_lazy_watchdog.sh", warp_mode="proxy"):
+    if warp_mode == "none":
+        return
+    script_content = build_watchdog_script(warp_mode)
+    if script_content is None:
+        return
     with open(script_path, "w", encoding="utf-8") as f:
-        f.write(build_watchdog_script(warp_mode))
+        f.write(script_content)
     os.chmod(script_path, 0o755)
 
     cron_line = f"* * * * * {script_path}"
