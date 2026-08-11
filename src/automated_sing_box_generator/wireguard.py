@@ -112,21 +112,27 @@ def parse_wg_config(content: str) -> dict:
     }
 
 def read_single_config_interactive(prompt_text: str) -> str:
-    """交互式读取单份配置（粘贴配置后，在下一行输入 END 然后按回车结束）。"""
     print(prompt_text, flush=True)
     lines = []
+    fd = sys.stdin.fileno()
     while True:
         try:
-            line = input()
-            if line.strip().upper() == "END":
+            r, _, _ = select.select([sys.stdin], [], [], None)
+            if not r:
+                break
+            line = sys.stdin.readline()
+            if not line:
                 break
             lines.append(line)
-        except EOFError:
-            break
+            if not line.strip():
+                r2, _, _ = select.select([sys.stdin], [], [], 0.3)
+                if not r2:
+                    lines.pop()
+                    break
         except KeyboardInterrupt:
             print()
             raise RuntimeError("用户取消了交互式输入")
-    return "\n".join(lines).strip()
+    return "".join(lines).strip()
 
 def read_wg_configs_interactive() -> list[str]:
     """交互式读取多个独立的 WireGuard 配置文件。"""
