@@ -1,0 +1,32 @@
+{
+  "plan": "switch_outbound 增加 warp-svc 启停和 watchdog crontab 清理",
+  "files": [
+    {
+      "file": "src/automated_sing_box_generator/outbound.py",
+      "function": "switch_outbound",
+      "changes": [
+        {
+          "location": "target==warp 前置检查后 (after line 95)",
+          "action": "start warp-svc + deploy watchdog",
+          "code": "subprocess.run([\"systemctl\", \"enable\", \"--now\", \"warp-svc\"], check=False)\nwatchdog.deploy_watchdog(deploy.WATCHDOG_SCRIPT_PATH, warp_mode=loaded.get(\"warp_mode\", \"proxy\"))"
+        },
+        {
+          "location": "target==wireguard 或 direct 时，symlink 切换之前",
+          "action": "stop warp-svc + disable + 删除 watchdog crontab",
+          "code": "subprocess.run([\"systemctl\", \"stop\", \"warp-svc\"], check=False)\nsubprocess.run([\"systemctl\", \"disable\", \"warp-svc\"], check=False)\nsubprocess.run(\"crontab -l 2>/dev/null | grep -v warp_lazy_watchdog.sh | crontab -\", shell=True)"
+        }
+      ],
+      "note": "already_imports: deploy. already_needs_new_import: watchdog, subprocess 已导入"
+    }
+  ],
+  "not_needed": [
+    "deploy.py — 首次 deploy wireguard 时 warp-svc 没装过就不存在",
+    "watchdog.py — 不改",
+    "state.py — 不改"
+  ],
+  "behavior": {
+    "switch warp": "enable+start warp-svc → deploy watchdog cron → symlink → sing-box restart",
+    "switch wireguard": "stop+disable warp-svc → remove watchdog cron → symlink → sing-box restart",
+    "switch direct": "stop+disable warp-svc → remove watchdog cron → symlink → sing-box restart"
+  }
+}

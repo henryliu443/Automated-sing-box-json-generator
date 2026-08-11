@@ -169,7 +169,7 @@ def read_wg_configs_interactive() -> list[str]:
             
     configs = []
     for i in range(count):
-        prompt_text = f"请粘贴第 {i+1}/{count} 个配置文件 (粘贴完成后在下一行输入 END 然后按回车结束):"
+        prompt_text = f"请粘贴第 {i+1}/{count} 个配置文件 (粘贴完成后按回车结束):"
         content = read_single_config_interactive(prompt_text)
         if not content:
             raise RuntimeError("配置内容不能为空")
