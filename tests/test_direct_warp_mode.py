@@ -23,8 +23,9 @@ class TestDirectWarpMode(unittest.TestCase):
             del os.environ["WARP_MODE"]
 
     def test_outbounds_none(self):
-        outbounds = build_server_outbounds("none")
-        self.assertEqual(outbounds, [{"type": "direct", "tag": "direct"}])
+        result = build_server_outbounds("none")
+        self.assertEqual(result["outbounds"], [{"type": "direct", "tag": "direct"}])
+        self.assertNotIn("endpoints", result)
 
     def test_watchdog_script_none(self):
         self.assertIsNone(build_watchdog_script("none"))
