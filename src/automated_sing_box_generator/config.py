@@ -153,7 +153,7 @@ def build_protocol_hosts(domain_root, prefixes):
 
 
 def build_server_outbounds(warp_mode, wg_params=None, mtu=1280):
-    """返回 {"outbounds": [...], "endpoints": [...]}。endpoints 仅在 wireguard 模式存在。"""
+    """返回 {"outbounds": [...]}。wireguard 模式下所有字段内联在 outbound 中。"""
     if warp_mode == "proxy":
         return {"outbounds": [
             {
@@ -182,16 +182,14 @@ def build_server_outbounds(warp_mode, wg_params=None, mtu=1280):
         from .wireguard import build_singbox_wg_outbound
 
         if len(wg_list) == 1:
-            ob, ep = build_singbox_wg_outbound(wg_list[0], tag="warp-out", allow_ipv6=False, mtu=mtu)
-            return {"outbounds": [ob, {"type": "direct", "tag": "direct"}], "endpoints": [ep]}
+            ob = build_singbox_wg_outbound(wg_list[0], tag="warp-out", allow_ipv6=False, mtu=mtu)
+            return {"outbounds": [ob, {"type": "direct", "tag": "direct"}]}
 
         tags = [f"wg-out-{i}" for i in range(len(wg_list))]
-        ob_ep_pairs = [
+        wg_outbounds = [
             build_singbox_wg_outbound(p, tag=t, allow_ipv6=False, mtu=mtu)
             for p, t in zip(wg_list, tags)
         ]
-        wg_outbounds = [ob for ob, _ in ob_ep_pairs]
-        wg_endpoints = [ep for _, ep in ob_ep_pairs]
         return {
             "outbounds": [
                 {
@@ -206,7 +204,6 @@ def build_server_outbounds(warp_mode, wg_params=None, mtu=1280):
                 *wg_outbounds,
                 {"type": "direct", "tag": "direct"},
             ],
-            "endpoints": wg_endpoints,
         }
 
     raise ValueError(f"unsupported warp_mode: {warp_mode}")
@@ -493,8 +490,6 @@ def build_server_config(creds, protocol_hosts=None, warp_mode="proxy", enabled_p
             "default_domain_resolver": SERVER_DNS_TAG,
         },
     }
-    if ob_result.get("endpoints"):
-        config["endpoints"] = ob_result["endpoints"]
     return config
 
 
