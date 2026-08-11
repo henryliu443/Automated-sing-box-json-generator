@@ -152,7 +152,7 @@ def build_protocol_hosts(domain_root, prefixes):
     return {key: f"{prefix}.{root}" for key, prefix in prefixes.items()}
 
 
-def build_server_outbounds(warp_mode):
+def build_server_outbounds(warp_mode, wg_params=None, mtu=1280):
     if warp_mode == "proxy":
         return [
             {
@@ -175,6 +175,37 @@ def build_server_outbounds(warp_mode):
 
     if warp_mode == "none":
         return [{"type": "direct", "tag": "direct"}]
+
+    if warp_mode == "wireguard":
+        if not wg_params:
+            raise ValueError("wireguard mode requires wg_params")
+        wg_list = wg_params if isinstance(wg_params, list) else [wg_params]
+        from .wireguard import build_singbox_wg_outbound
+
+        if len(wg_list) == 1:
+            return [
+                build_singbox_wg_outbound(wg_list[0], tag="warp-out", allow_ipv6=False, mtu=mtu),
+                {"type": "direct", "tag": "direct"},
+            ]
+
+        tags = [f"wg-out-{i}" for i in range(len(wg_list))]
+        wg_outbounds = [
+            build_singbox_wg_outbound(p, tag=t, allow_ipv6=False, mtu=mtu)
+            for p, t in zip(wg_list, tags)
+        ]
+        return [
+            {
+                "type": "urltest",
+                "tag": "warp-out",
+                "outbounds": tags,
+                "url": "https://cp.cloudflare.com/generate_204",
+                "interval": "5m",
+                "tolerance": 100,
+                "interrupt_exist_connections": True,
+            },
+            *wg_outbounds,
+            {"type": "direct", "tag": "direct"},
+        ]
 
     raise ValueError(f"unsupported warp_mode: {warp_mode}")
 
@@ -403,7 +434,7 @@ def build_client_outbounds(creds, hosts, enabled_protocols=None, fingerprint_opt
     return result
 
 
-def build_server_config(creds, protocol_hosts=None, warp_mode="proxy", enabled_protocols=None, fingerprint_opts=None):
+def build_server_config(creds, protocol_hosts=None, warp_mode="proxy", enabled_protocols=None, fingerprint_opts=None, wg_params=None, mtu=1280):
     if not protocol_hosts:
         raise ValueError("protocol_hosts is required")
     if enabled_protocols is None:
@@ -414,7 +445,7 @@ def build_server_config(creds, protocol_hosts=None, warp_mode="proxy", enabled_p
     inbounds = [_SERVER_INBOUND_BUILDERS[p](creds, hosts, fingerprint_opts) for p in enabled_protocols]
     inbound_tags = [PROTOCOL_DEFS[p]["inbound_tag"] for p in enabled_protocols]
 
-    outbound_tag = "warp-out" if warp_mode in ("proxy", "tun") else "direct"
+    outbound_tag = "warp-out" if warp_mode in ("proxy", "tun", "wireguard") else "direct"
     rules = []
     if "anytls" in enabled_protocols:
         rules.append({
@@ -452,7 +483,7 @@ def build_server_config(creds, protocol_hosts=None, warp_mode="proxy", enabled_p
             ],
         },
         "inbounds": inbounds,
-        "outbounds": build_server_outbounds(warp_mode),
+        "outbounds": build_server_outbounds(warp_mode, wg_params=wg_params, mtu=mtu),
         "route": {
             "rules": rules,
             "final": outbound_tag,

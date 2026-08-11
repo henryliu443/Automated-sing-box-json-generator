@@ -36,6 +36,16 @@ CF_ZONE_ID_ENV = "CF_Zone_ID"
 SING_BOX_CONFIG_PATH = "/etc/sing-box/config.json"
 SING_BOX_WARP_CONFIG_PATH = "/etc/sing-box/profiles/config.warp.json"
 SING_BOX_DIRECT_CONFIG_PATH = "/etc/sing-box/profiles/config.direct.json"
+SING_BOX_WG_CONFIG_PATH = "/etc/sing-box/profiles/config.wireguard.json"
+
+OUTBOUND_TARGET_MAP = {
+    "none":      SING_BOX_DIRECT_CONFIG_PATH,
+    "direct":    SING_BOX_DIRECT_CONFIG_PATH,
+    "proxy":     SING_BOX_WARP_CONFIG_PATH,
+    "tun":       SING_BOX_WARP_CONFIG_PATH,
+    "warp":      SING_BOX_WARP_CONFIG_PATH,
+    "wireguard": SING_BOX_WG_CONFIG_PATH,
+}
 WATCHDOG_SCRIPT_PATH = "/root/warp_lazy_watchdog.sh"
 SERVER_IP_ENV = "SERVER_IP"
 
@@ -126,9 +136,12 @@ def prompt_server_ip():
 
 
 def prompt_warp_mode():
-    ui.section("WARP 模式")
+    ui.section("出站模式")
     env_mode = (os.environ.get("WARP_MODE") or "").strip().lower()
     if env_mode:
+        if env_mode in {"wireguard", "wg"}:
+            ui.info(f"使用环境变量 WARP_MODE: {env_mode} -> wireguard")
+            return "wireguard"
         if env_mode in {"direct", "none"}:
             ui.info(f"使用环境变量 WARP_MODE: {env_mode} -> none")
             return "none"
@@ -136,11 +149,13 @@ def prompt_warp_mode():
             ui.info(f"使用环境变量 WARP_MODE: {env_mode}")
             return env_mode
 
-    raw = ui.prompt("请选择 WARP 模式 [proxy/tun/direct] (默认 proxy)").strip().lower()
+    raw = ui.prompt("请选择出站模式 [proxy/tun/wireguard/direct] (默认 proxy)").strip().lower()
     if not raw:
         return "proxy"
     if raw in {"proxy", "tun"}:
         return raw
+    if raw in {"wireguard", "wg"}:
+        return "wireguard"
     if raw in {"direct", "none"}:
         return "none"
     ui.warning(f"无效模式 {raw}，将使用默认 proxy")
@@ -252,6 +267,15 @@ def deploy(domain_root=None, enabled_protocols=None, fingerprint_overrides=None)
     )
     preferred_warp_mode = prompt_warp_mode()
 
+    # WireGuard 配置获取
+    wg_params = None
+    if preferred_warp_mode == "wireguard":
+        from .wireguard import read_wg_configs_interactive, parse_wg_config
+        configs = read_wg_configs_interactive()
+        wg_params = [parse_wg_config(c) for c in configs]
+        endpoints = ", ".join(f"{p['endpoint_host']}:{p['endpoint_port']}" for p in wg_params)
+        ui.success(f"已加载 {len(wg_params)} 个 WireGuard 端点: {endpoints}")
+
     # CF credentials are always required (DNS record management + optional TLS)
     cf_token, cf_zone_id = resolve_cf_dns_credentials()
 
@@ -288,10 +312,6 @@ def deploy(domain_root=None, enabled_protocols=None, fingerprint_overrides=None)
     ui.section("配置生成")
     ui.step("生成服务端和客户端配置")
     creds = generate_credentials()
-    server_config_warp = build_server_config(
-        creds, phosts, warp_mode=warp_mode, enabled_protocols=enabled_protocols,
-        fingerprint_opts=protocol_inputs,
-    )
     server_config_direct = build_server_config(
         creds, phosts, warp_mode="none", enabled_protocols=enabled_protocols,
         fingerprint_opts=protocol_inputs,
@@ -312,9 +332,23 @@ def deploy(domain_root=None, enabled_protocols=None, fingerprint_overrides=None)
     ui.success("OS-level network hardening (nftables)")
 
     ui.step(f"写入服务端配置: {SING_BOX_CONFIG_PATH}")
-    write_server_config(server_config_warp, SING_BOX_WARP_CONFIG_PATH)
     write_server_config(server_config_direct, SING_BOX_DIRECT_CONFIG_PATH)
-    activate_server_config(target=SING_BOX_DIRECT_CONFIG_PATH if warp_mode == "none" else SING_BOX_WARP_CONFIG_PATH)
+
+    if warp_mode in ("proxy", "tun"):
+        server_config_warp = build_server_config(
+            creds, phosts, warp_mode=warp_mode, enabled_protocols=enabled_protocols,
+            fingerprint_opts=protocol_inputs,
+        )
+        write_server_config(server_config_warp, SING_BOX_WARP_CONFIG_PATH)
+
+    if wg_params:
+        server_config_wg = build_server_config(
+            creds, phosts, warp_mode="wireguard", enabled_protocols=enabled_protocols,
+            fingerprint_opts=protocol_inputs, wg_params=wg_params
+        )
+        write_server_config(server_config_wg, SING_BOX_WG_CONFIG_PATH)
+
+    activate_server_config(target=OUTBOUND_TARGET_MAP[warp_mode])
     _clean_legacy_configs()
 
     ui.section("保存部署状态")
@@ -329,12 +363,14 @@ def deploy(domain_root=None, enabled_protocols=None, fingerprint_overrides=None)
         "dns_record_ids": dns_record_ids,
         "anti_detection": protocol_inputs,
         "preferred_warp_mode": preferred_warp_mode,
+        "wg_params": wg_params,
+        "active_outbound": warp_mode,
     })
     ui.success("部署状态已保存")
 
     ui.section("守护任务")
-    if warp_mode == "none":
-        ui.info("WARP 为直连模式 (none)，跳过 Watchdog 部署")
+    if warp_mode in ("none", "wireguard"):
+        ui.info(f"出站为 {warp_mode} 模式，跳过 Watchdog 部署")
     else:
         ui.step(f"部署 watchdog: {WATCHDOG_SCRIPT_PATH}")
         deploy_watchdog(WATCHDOG_SCRIPT_PATH, warp_mode=warp_mode)
@@ -353,6 +389,8 @@ def redeploy(enabled_protocols=None):
     protocol_inputs = old_state.get("anti_detection", {})
     warp_mode = old_state.get("warp_mode", "proxy")
     preferred_warp_mode = old_state.get("preferred_warp_mode")
+    wg_params = old_state.get("wg_params")
+    active_outbound = old_state.get("active_outbound", warp_mode)
 
     cf_token, cf_zone_id = resolve_cf_dns_credentials()
     prefixes = gen_subdomain_prefixes()
@@ -380,10 +418,6 @@ def redeploy(enabled_protocols=None):
     ui.step("重新生成随机安全凭据 (UUID、密码等)...")
     creds = generate_credentials()
     
-    server_config_warp = build_server_config(
-        creds, phosts, warp_mode=warp_mode, enabled_protocols=enabled_protocols,
-        fingerprint_opts=protocol_inputs,
-    )
     server_config_direct = build_server_config(
         creds, phosts, warp_mode="none", enabled_protocols=enabled_protocols,
         fingerprint_opts=protocol_inputs,
@@ -397,9 +431,23 @@ def redeploy(enabled_protocols=None):
     )
 
     ui.step(f"写入服务端配置: {SING_BOX_CONFIG_PATH}")
-    write_server_config(server_config_warp, SING_BOX_WARP_CONFIG_PATH)
     write_server_config(server_config_direct, SING_BOX_DIRECT_CONFIG_PATH)
-    activate_server_config(target=SING_BOX_DIRECT_CONFIG_PATH if warp_mode == "none" else SING_BOX_WARP_CONFIG_PATH)
+
+    if warp_mode in ("proxy", "tun"):
+        server_config_warp = build_server_config(
+            creds, phosts, warp_mode=warp_mode, enabled_protocols=enabled_protocols,
+            fingerprint_opts=protocol_inputs,
+        )
+        write_server_config(server_config_warp, SING_BOX_WARP_CONFIG_PATH)
+
+    if wg_params:
+        server_config_wg = build_server_config(
+            creds, phosts, warp_mode="wireguard", enabled_protocols=enabled_protocols,
+            fingerprint_opts=protocol_inputs, wg_params=wg_params
+        )
+        write_server_config(server_config_wg, SING_BOX_WG_CONFIG_PATH)
+
+    activate_server_config(target=OUTBOUND_TARGET_MAP.get(active_outbound, OUTBOUND_TARGET_MAP[warp_mode]))
     _clean_legacy_configs()
 
     ui.section("保存部署状态")
@@ -414,11 +462,13 @@ def redeploy(enabled_protocols=None):
         "dns_record_ids": dns_record_ids,
         "anti_detection": protocol_inputs,
         "preferred_warp_mode": preferred_warp_mode,
+        "wg_params": wg_params,
+        "active_outbound": active_outbound,
     })
     ui.success("部署状态已保存")
 
-    restart_services_and_verify(warp_mode, pports)
-    print_success_result(client_config, phosts, warp_mode, enabled_protocols, fingerprint_opts=protocol_inputs)
+    restart_services_and_verify(active_outbound, pports)
+    print_success_result(client_config, phosts, active_outbound, enabled_protocols, fingerprint_opts=protocol_inputs)
 
 
 def reconfigure(enabled_protocols=None):
@@ -433,6 +483,8 @@ def reconfigure(enabled_protocols=None):
     creds = loaded["credentials"]
     phosts = loaded["protocol_hosts"]
     warp_mode = loaded["warp_mode"]
+    wg_params = loaded.get("wg_params")
+    active_outbound = loaded.get("active_outbound", warp_mode)
     pports = protocol_ports(enabled_protocols)
 
     # If protocol selection changed, sync DNS records accordingly
@@ -453,10 +505,6 @@ def reconfigure(enabled_protocols=None):
     ui.section("配置生成")
     ui.step("生成服务端和客户端配置")
     opts = loaded.get("anti_detection")
-    server_config_warp = build_server_config(
-        creds, phosts, warp_mode=warp_mode, enabled_protocols=enabled_protocols,
-        fingerprint_opts=opts,
-    )
     server_config_direct = build_server_config(
         creds, phosts, warp_mode="none", enabled_protocols=enabled_protocols,
         fingerprint_opts=opts,
@@ -470,16 +518,30 @@ def reconfigure(enabled_protocols=None):
     )
 
     ui.step(f"写入服务端配置: {SING_BOX_CONFIG_PATH}")
-    write_server_config(server_config_warp, SING_BOX_WARP_CONFIG_PATH)
     write_server_config(server_config_direct, SING_BOX_DIRECT_CONFIG_PATH)
-    activate_server_config(target=SING_BOX_DIRECT_CONFIG_PATH if warp_mode == "none" else SING_BOX_WARP_CONFIG_PATH)
+
+    if warp_mode in ("proxy", "tun"):
+        server_config_warp = build_server_config(
+            creds, phosts, warp_mode=warp_mode, enabled_protocols=enabled_protocols,
+            fingerprint_opts=opts,
+        )
+        write_server_config(server_config_warp, SING_BOX_WARP_CONFIG_PATH)
+
+    if wg_params:
+        server_config_wg = build_server_config(
+            creds, phosts, warp_mode="wireguard", enabled_protocols=enabled_protocols,
+            fingerprint_opts=opts, wg_params=wg_params
+        )
+        write_server_config(server_config_wg, SING_BOX_WG_CONFIG_PATH)
+
+    activate_server_config(target=OUTBOUND_TARGET_MAP.get(active_outbound, OUTBOUND_TARGET_MAP[warp_mode]))
     _clean_legacy_configs()
 
     loaded["enabled_protocols"] = enabled_protocols
     state_mod.save_state(loaded)
 
-    restart_services_and_verify(warp_mode, pports)
-    print_success_result(client_config, phosts, warp_mode, enabled_protocols, fingerprint_opts=opts)
+    restart_services_and_verify(active_outbound, pports)
+    print_success_result(client_config, phosts, active_outbound, enabled_protocols, fingerprint_opts=opts)
 
 
 def show_status():
@@ -489,8 +551,19 @@ def show_status():
         ui.section("部署状态")
         ui.kv("域名", loaded.get("domain_root", "?"))
         ui.kv("协议", ", ".join(loaded.get("enabled_protocols", [])))
-        warp_display = "direct (无 WARP)" if warp_mode == "none" else warp_mode
-        ui.kv("WARP 模式", warp_display)
+        active = loaded.get("active_outbound", warp_mode)
+        if active == "wireguard":
+            wg_p = loaded.get("wg_params")
+            ui.kv("WARP 模式", "wireguard")
+            if isinstance(wg_p, list):
+                endpoints = [f"{p['endpoint_host']}:{p['endpoint_port']}" for p in wg_p]
+                ui.kv("WireGuard 端点", ", ".join(endpoints))
+            elif isinstance(wg_p, dict):
+                ui.kv("WireGuard 端点", f"{wg_p.get('endpoint_host')}:{wg_p.get('endpoint_port')}")
+        elif active == "none":
+            ui.kv("WARP 模式", "direct (无 WARP)")
+        else:
+            ui.kv("WARP 模式", active)
         ui.kv("服务器 IP", loaded.get("server_ip", "?"))
         ui.kv("部署时间", loaded.get("deployed_at", "?"))
 
@@ -513,6 +586,8 @@ def show_status():
 
     if warp_mode == "none":
         ui.info("WARP: 直连模式 (无 WARP)")
+    elif warp_mode == "wireguard":
+        ui.success("WARP: WireGuard 出站模式已配置")
     elif warp_proxy_ready():
         ui.success("WARP: 本地代理模式正常")
     elif warp_tunnel_ready():
