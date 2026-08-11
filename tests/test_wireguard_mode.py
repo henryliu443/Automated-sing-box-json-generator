@@ -97,28 +97,33 @@ class TestWireGuardMode(unittest.TestCase):
 
     def test_build_singbox_wg_outbound(self):
         params = parse_wg_config(VALID_WG_CONFIG_WITH_PRESHARED)
-        outbound = build_singbox_wg_outbound(params, tag="custom-wg")
-        self.assertEqual(outbound["type"], "wireguard")
-        self.assertEqual(outbound["tag"], "custom-wg")
-        self.assertEqual(outbound["address"], ["10.2.0.2/32"])
-        self.assertEqual(outbound["private_key"], "privatekeybase64=")
-        self.assertEqual(outbound["peers"][0]["public_key"], "peerpublickeybase64=")
-        self.assertEqual(outbound["peers"][0]["pre_shared_key"], "presharedkeybase64=")
-        self.assertEqual(outbound["peers"][0]["address"], "185.200.118.4")
-        self.assertEqual(outbound["peers"][0]["port"], 51820)
+        endpoint = build_singbox_wg_outbound(params, tag="custom-wg")
+        self.assertEqual(endpoint["type"], "wireguard")
+        self.assertEqual(endpoint["tag"], "custom-wg")
+        self.assertEqual(endpoint["address"], ["10.2.0.2/32"])
+        self.assertEqual(endpoint["private_key"], "privatekeybase64=")
+        self.assertEqual(endpoint["peers"][0]["public_key"], "peerpublickeybase64=")
+        self.assertEqual(endpoint["peers"][0]["pre_shared_key"], "presharedkeybase64=")
+        self.assertEqual(endpoint["peers"][0]["address"], "185.200.118.4")
+        self.assertEqual(endpoint["peers"][0]["port"], 51820)
 
     def test_build_server_outbounds_wireguard(self):
         params = parse_wg_config(VALID_WG_CONFIG)
         result = build_server_outbounds("wireguard", wg_params=params)
         self.assertIn("outbounds", result)
-        self.assertNotIn("endpoints", result)
+        self.assertIn("endpoints", result)
         self.assertEqual(len(result["outbounds"]), 2)
-        self.assertEqual(result["outbounds"][0]["type"], "wireguard")
-        self.assertEqual(result["outbounds"][0]["address"], ["10.2.0.2/32", "fd00::2/128"])
-        self.assertEqual(result["outbounds"][0]["private_key"], "privatekeybase64=")
-        self.assertEqual(result["outbounds"][0]["peers"][0]["address"], "185.200.118.4")
-        self.assertEqual(result["outbounds"][0]["peers"][0]["port"], 51820)
+        self.assertEqual(result["outbounds"][0]["type"], "urltest")
+        self.assertEqual(result["outbounds"][0]["outbounds"], ["wg-out-0"])
         self.assertEqual(result["outbounds"][1]["type"], "direct")
+        self.assertEqual(len(result["endpoints"]), 1)
+        ep = result["endpoints"][0]
+        self.assertEqual(ep["type"], "wireguard")
+        self.assertEqual(ep["tag"], "wg-out-0")
+        self.assertEqual(ep["address"], ["10.2.0.2/32", "fd00::2/128"])
+        self.assertEqual(ep["private_key"], "privatekeybase64=")
+        self.assertEqual(ep["peers"][0]["address"], "185.200.118.4")
+        self.assertEqual(ep["peers"][0]["port"], 51820)
 
     def test_build_server_outbounds_wireguard_missing_params(self):
         with self.assertRaises(ValueError):
@@ -268,31 +273,36 @@ Endpoint = 2.2.2.2:51820
         params = parse_wg_config(VALID_WG_CONFIG)
         result = build_server_outbounds("wireguard", wg_params=params)
         self.assertEqual(len(result["outbounds"]), 2)
-        self.assertEqual(result["outbounds"][0]["type"], "wireguard")
-        self.assertEqual(result["outbounds"][0]["address"], ["10.2.0.2/32", "fd00::2/128"])
+        self.assertEqual(result["outbounds"][0]["type"], "urltest")
+        self.assertEqual(result["outbounds"][0]["outbounds"], ["wg-out-0"])
         self.assertEqual(result["outbounds"][1]["type"], "direct")
-        self.assertNotIn("endpoints", result)
+        self.assertIn("endpoints", result)
+        self.assertEqual(len(result["endpoints"]), 1)
+        self.assertEqual(result["endpoints"][0]["tag"], "wg-out-0")
+        self.assertEqual(result["endpoints"][0]["address"], ["10.2.0.2/32", "fd00::2/128"])
 
     def test_build_server_outbounds_multi_wg(self):
         p1 = parse_wg_config(VALID_WG_CONFIG)
         p2 = parse_wg_config(VALID_WG_CONFIG_WITH_PRESHARED)
         result = build_server_outbounds("wireguard", wg_params=[p1, p2])
-        self.assertNotIn("endpoints", result)
-        self.assertEqual(len(result["outbounds"]), 4)  # urltest + wg0 + wg1 + direct
+        self.assertIn("endpoints", result)
+        self.assertEqual(len(result["endpoints"]), 2)
+        self.assertEqual(len(result["outbounds"]), 2)  # urltest + direct
         self.assertEqual(result["outbounds"][0]["type"], "urltest")
         self.assertEqual(result["outbounds"][0]["outbounds"], ["wg-out-0", "wg-out-1"])
-        self.assertEqual(result["outbounds"][1]["type"], "wireguard")
-        self.assertEqual(result["outbounds"][1]["address"], ["10.2.0.2/32", "fd00::2/128"])
-        self.assertEqual(result["outbounds"][2]["type"], "wireguard")
-        self.assertEqual(result["outbounds"][2]["address"], ["10.2.0.2/32"])
-        self.assertEqual(result["outbounds"][3]["type"], "direct")
+        self.assertEqual(result["outbounds"][1]["type"], "direct")
+        self.assertEqual(result["endpoints"][0]["tag"], "wg-out-0")
+        self.assertEqual(result["endpoints"][0]["address"], ["10.2.0.2/32", "fd00::2/128"])
+        self.assertEqual(result["endpoints"][1]["tag"], "wg-out-1")
+        self.assertEqual(result["endpoints"][1]["address"], ["10.2.0.2/32"])
 
     def test_build_server_outbounds_wg_backcompat_dict(self):
         p = parse_wg_config(VALID_WG_CONFIG)
         result = build_server_outbounds("wireguard", wg_params=p)
         self.assertEqual(len(result["outbounds"]), 2)
-        self.assertEqual(result["outbounds"][0]["type"], "wireguard")
-        self.assertNotIn("endpoints", result)
+        self.assertEqual(result["outbounds"][0]["type"], "urltest")
+        self.assertIn("endpoints", result)
+        self.assertEqual(len(result["endpoints"]), 1)
 
     def test_read_wg_configs_interactive_env(self):
         from automated_sing_box_generator.wireguard import read_wg_configs_interactive

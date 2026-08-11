@@ -195,7 +195,8 @@ def read_wg_config_interactive() -> str:
     return configs[0]
 
 def build_singbox_wg_outbound(wg_params: dict, tag: str = "warp-out", allow_ipv6: bool = True, mtu: int = 1280) -> dict:
-    """返回内联 outbound — sing-box 1.12+ 只支持内联字段，不使用 endpoint 引用。"""
+    """返回 wireguard endpoint 配置 — sing-box 1.13+ 移除了 wireguard outbound，
+    endpoint 直接作为出站被 route/urltest 引用。"""
     raw_peers = wg_params.get("peers")
     peers = []
 
@@ -230,7 +231,7 @@ def build_singbox_wg_outbound(wg_params: dict, tag: str = "warp-out", allow_ipv6
     env_mtu = os.environ.get("WG_MTU")
     final_mtu = int(env_mtu) if env_mtu else mtu
 
-    outbound = {
+    endpoint = {
         "type": "wireguard",
         "tag": tag,
         "address": wg_params["address"],
@@ -239,4 +240,4 @@ def build_singbox_wg_outbound(wg_params: dict, tag: str = "warp-out", allow_ipv6
         "mtu": final_mtu,
     }
 
-    return outbound
+    return endpoint
