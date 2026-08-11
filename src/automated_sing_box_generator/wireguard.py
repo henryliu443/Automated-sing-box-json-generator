@@ -1,4 +1,5 @@
 import os
+import select
 import sys
 import re
 from . import ui
@@ -111,12 +112,14 @@ def parse_wg_config(content: str) -> dict:
     }
 
 def read_single_config_interactive(prompt_text: str) -> str:
-    """在终端交互式读取单份配置（使用 input 循环，Ctrl+D 结束）。"""
+    """交互式读取单份配置（粘贴配置后，在下一行输入 END 然后按回车结束）。"""
     print(prompt_text, flush=True)
     lines = []
     while True:
         try:
             line = input()
+            if line.strip().upper() == "END":
+                break
             lines.append(line)
         except EOFError:
             break
@@ -160,7 +163,7 @@ def read_wg_configs_interactive() -> list[str]:
             
     configs = []
     for i in range(count):
-        prompt_text = f"请粘贴第 {i+1}/{count} 个配置文件 (输入完毕后按 Ctrl+D 结束):"
+        prompt_text = f"请粘贴第 {i+1}/{count} 个配置文件 (粘贴完成后在下一行输入 END 然后按回车结束):"
         content = read_single_config_interactive(prompt_text)
         if not content:
             raise RuntimeError("配置内容不能为空")
