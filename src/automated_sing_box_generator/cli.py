@@ -260,7 +260,7 @@ def build_parser():
         from importlib.metadata import version
         __version__ = version("automated-sing-box-generator")
     except Exception:
-        __version__ = "0.3.23" # fallback
+        __version__ = "0.3.24" # fallback
 
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     

@@ -214,20 +214,40 @@ Endpoint = 2.2.2.2:51820
     def test_switch_outbound_warp_unavailable(self):
         from automated_sing_box_generator.outbound import switch_outbound
         with patch("os.path.exists", return_value=True), \
+             patch("subprocess.run") as mock_run, \
              patch("automated_sing_box_generator.installer.warp_proxy_ready", return_value=False), \
              patch("automated_sing_box_generator.installer.warp_tunnel_ready", return_value=False), \
              patch("automated_sing_box_generator.ui.error") as mock_error:
             switch_outbound("warp")
             mock_error.assert_called_with("WARP 服务未就绪/未运行！请先运行 'automated-sing-box-generator manage outbound add warp'。")
+            mock_run.assert_called_with(["systemctl", "enable", "--now", "warp-svc"], check=False)
 
     def test_switch_outbound_wg_endpoint_unreachable(self):
         from automated_sing_box_generator.outbound import switch_outbound
         with patch("os.path.exists", return_value=True), \
+             patch("subprocess.run") as mock_run, \
              patch("automated_sing_box_generator.state.load_state", return_value={"wg_params": {"endpoint_host": "invalid-host-dns-fail.test"}}), \
              patch("automated_sing_box_generator.outbound.check_dns_resolvable", return_value=False), \
              patch("automated_sing_box_generator.ui.error") as mock_error:
             switch_outbound("wireguard")
             mock_error.assert_called_with("无法解析 WireGuard 终点 DNS: invalid-host-dns-fail.test，切换已终止。请检查网络连接。")
+            mock_run.assert_any_call(["systemctl", "stop", "warp-svc"], check=False)
+            mock_run.assert_any_call(["systemctl", "disable", "warp-svc"], check=False)
+
+    def test_switch_outbound_wireguard_stops_warp_svc_and_cleans_cron(self):
+        from automated_sing_box_generator.outbound import switch_outbound
+        with patch("os.path.exists", return_value=True), \
+             patch("os.path.islink", return_value=True), \
+             patch("os.readlink", return_value="/etc/sing-box/profiles/config.warp.json"), \
+             patch("subprocess.run") as mock_run, \
+             patch("automated_sing_box_generator.state.load_state", return_value={"wg_params": [{"endpoint_host": "1.1.1.1"}]}), \
+             patch("automated_sing_box_generator.outbound.check_dns_resolvable", return_value=True), \
+             patch("automated_sing_box_generator.outbound.get_outbound_ip_snapshot", return_value="1.1.1.1"):
+            mock_run.return_value.returncode = 0
+            switch_outbound("wireguard")
+            mock_run.assert_any_call(["systemctl", "stop", "warp-svc"], check=False)
+            mock_run.assert_any_call(["systemctl", "disable", "warp-svc"], check=False)
+            mock_run.assert_any_call("crontab -l 2>/dev/null | grep -v warp_lazy_watchdog.sh | crontab -", shell=True)
 
     def test_build_singbox_wg_outbound_custom_mtu(self):
         params = parse_wg_config(VALID_WG_CONFIG)

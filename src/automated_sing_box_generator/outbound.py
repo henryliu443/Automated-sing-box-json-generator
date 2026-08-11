@@ -87,22 +87,33 @@ def switch_outbound(target: str):
         ui.error(f"出口 profile 不存在: {profile_path}。请先添加该出口。")
         return
 
-    # 前置依赖检查
+    # 前置依赖检查与服务状态同步
     if target == "warp":
+        subprocess.run(["systemctl", "enable", "--now", "warp-svc"], check=False)
         from .installer import warp_proxy_ready, warp_tunnel_ready
         if not (warp_proxy_ready() or warp_tunnel_ready()):
             ui.error("WARP 服务未就绪/未运行！请先运行 'automated-sing-box-generator manage outbound add warp'。")
             return
-    elif target == "wireguard":
-        loaded = state_mod.load_state()
-        endpoint_host = None
-        if loaded and loaded.get("wg_params"):
-            endpoint_host = loaded["wg_params"].get("endpoint_host")
-        if endpoint_host:
-            ui.step(f"校验 WireGuard 终点 DNS 解析: {endpoint_host}")
-            if not check_dns_resolvable(endpoint_host, timeout=3.0):
-                ui.error(f"无法解析 WireGuard 终点 DNS: {endpoint_host}，切换已终止。请检查网络连接。")
-                return
+        loaded = state_mod.load_state() or {}
+        from . import watchdog, deploy
+        watchdog.deploy_watchdog(deploy.WATCHDOG_SCRIPT_PATH, warp_mode=loaded.get("warp_mode", "proxy"))
+    else:
+        subprocess.run(["systemctl", "stop", "warp-svc"], check=False)
+        subprocess.run(["systemctl", "disable", "warp-svc"], check=False)
+        subprocess.run("crontab -l 2>/dev/null | grep -v warp_lazy_watchdog.sh | crontab -", shell=True)
+        if target == "wireguard":
+            loaded = state_mod.load_state() or {}
+            endpoint_host = None
+            wg_p = loaded.get("wg_params")
+            if isinstance(wg_p, list) and wg_p:
+                endpoint_host = wg_p[0].get("endpoint_host")
+            elif isinstance(wg_p, dict):
+                endpoint_host = wg_p.get("endpoint_host")
+            if endpoint_host:
+                ui.step(f"校验 WireGuard 终点 DNS 解析: {endpoint_host}")
+                if not check_dns_resolvable(endpoint_host, timeout=3.0):
+                    ui.error(f"无法解析 WireGuard 终点 DNS: {endpoint_host}，切换已终止。请检查网络连接。")
+                    return
 
     # 读取旧的 symlink，以便在校验失败时回滚
     old_target = None
