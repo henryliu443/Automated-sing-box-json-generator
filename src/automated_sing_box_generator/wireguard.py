@@ -194,38 +194,35 @@ def read_wg_config_interactive() -> str:
         raise RuntimeError("未读取到任何 WireGuard 配置")
     return configs[0]
 
-def build_singbox_wg_outbound(wg_params: dict, tag: str = "warp-out", allow_ipv6: bool = True, mtu: int = 1280) -> dict:
-    """将解析后的参数转换为 sing-box 1.12+ WireGuard outbound（per-peer endpoint）。"""
-    # 优先使用新的 peers 列表
+def build_singbox_wg_outbound(wg_params: dict, tag: str = "warp-out", allow_ipv6: bool = True, mtu: int = 1280) -> tuple[dict, dict]:
+    """返回 (outbound, endpoint) — sing-box 1.11+ 分离了 endpoint 与 outbound。"""
+    ep_tag = f"{tag}-ep"
     raw_peers = wg_params.get("peers")
     peers = []
-    
+
     if raw_peers:
         for p in raw_peers:
             peer_allowed = p.get("allowed_ips", ["0.0.0.0/0", "::/0"])
             if not allow_ipv6:
                 peer_allowed = [ip for ip in peer_allowed if ":" not in ip]
-            
             peer_item = {
                 "public_key": p["public_key"],
                 "allowed_ips": peer_allowed,
-                "endpoint": p["endpoint_host"],
-                "endpoint_port": p["endpoint_port"],
+                "address": p["endpoint_host"],
+                "port": p["endpoint_port"],
             }
             if p.get("pre_shared_key"):
                 peer_item["pre_shared_key"] = p["pre_shared_key"]
             peers.append(peer_item)
     else:
-        # 向后兼容 flat 格式
         peer_allowed = wg_params.get("allowed_ips", ["0.0.0.0/0", "::/0"])
         if not allow_ipv6:
             peer_allowed = [ip for ip in peer_allowed if ":" not in ip]
-            
         peer_item = {
             "public_key": wg_params["peer_public_key"],
             "allowed_ips": peer_allowed,
-            "endpoint": wg_params["endpoint_host"],
-            "endpoint_port": wg_params["endpoint_port"],
+            "address": wg_params["endpoint_host"],
+            "port": wg_params["endpoint_port"],
         }
         if wg_params.get("preshared_key"):
             peer_item["pre_shared_key"] = wg_params["preshared_key"]
@@ -234,11 +231,19 @@ def build_singbox_wg_outbound(wg_params: dict, tag: str = "warp-out", allow_ipv6
     env_mtu = os.environ.get("WG_MTU")
     final_mtu = int(env_mtu) if env_mtu else mtu
 
-    return {
+    endpoint = {
         "type": "wireguard",
-        "tag": tag,
-        "local_address": wg_params["address"],
+        "tag": ep_tag,
+        "address": wg_params["address"],
         "private_key": wg_params["private_key"],
         "peers": peers,
         "mtu": final_mtu,
     }
+
+    outbound = {
+        "type": "wireguard",
+        "tag": tag,
+        "endpoint": ep_tag,
+    }
+
+    return outbound, endpoint

@@ -153,8 +153,9 @@ def build_protocol_hosts(domain_root, prefixes):
 
 
 def build_server_outbounds(warp_mode, wg_params=None, mtu=1280):
+    """返回 {"outbounds": [...], "endpoints": [...]}。endpoints 仅在 wireguard 模式存在。"""
     if warp_mode == "proxy":
-        return [
+        return {"outbounds": [
             {
                 "type": "socks",
                 "tag": "warp-out",
@@ -163,18 +164,16 @@ def build_server_outbounds(warp_mode, wg_params=None, mtu=1280):
                 "version": "5",
             },
             {"type": "direct", "tag": "direct"},
-        ]
+        ]}
 
     if warp_mode == "tun":
-        return [
-            # When the host itself is connected to WARP, regular direct traffic
-            # will be routed through the system tunnel by the OS.
+        return {"outbounds": [
             {"type": "direct", "tag": "warp-out"},
             {"type": "direct", "tag": "direct"},
-        ]
+        ]}
 
     if warp_mode == "none":
-        return [{"type": "direct", "tag": "direct"}]
+        return {"outbounds": [{"type": "direct", "tag": "direct"}]}
 
     if warp_mode == "wireguard":
         if not wg_params:
@@ -183,29 +182,32 @@ def build_server_outbounds(warp_mode, wg_params=None, mtu=1280):
         from .wireguard import build_singbox_wg_outbound
 
         if len(wg_list) == 1:
-            return [
-                build_singbox_wg_outbound(wg_list[0], tag="warp-out", allow_ipv6=False, mtu=mtu),
-                {"type": "direct", "tag": "direct"},
-            ]
+            ob, ep = build_singbox_wg_outbound(wg_list[0], tag="warp-out", allow_ipv6=False, mtu=mtu)
+            return {"outbounds": [ob, {"type": "direct", "tag": "direct"}], "endpoints": [ep]}
 
         tags = [f"wg-out-{i}" for i in range(len(wg_list))]
-        wg_outbounds = [
+        ob_ep_pairs = [
             build_singbox_wg_outbound(p, tag=t, allow_ipv6=False, mtu=mtu)
             for p, t in zip(wg_list, tags)
         ]
-        return [
-            {
-                "type": "urltest",
-                "tag": "warp-out",
-                "outbounds": tags,
-                "url": "https://cp.cloudflare.com/generate_204",
-                "interval": "5m",
-                "tolerance": 100,
-                "interrupt_exist_connections": True,
-            },
-            *wg_outbounds,
-            {"type": "direct", "tag": "direct"},
-        ]
+        wg_outbounds = [ob for ob, _ in ob_ep_pairs]
+        wg_endpoints = [ep for _, ep in ob_ep_pairs]
+        return {
+            "outbounds": [
+                {
+                    "type": "urltest",
+                    "tag": "warp-out",
+                    "outbounds": tags,
+                    "url": "https://cp.cloudflare.com/generate_204",
+                    "interval": "5m",
+                    "tolerance": 100,
+                    "interrupt_exist_connections": True,
+                },
+                *wg_outbounds,
+                {"type": "direct", "tag": "direct"},
+            ],
+            "endpoints": wg_endpoints,
+        }
 
     raise ValueError(f"unsupported warp_mode: {warp_mode}")
 
@@ -465,7 +467,8 @@ def build_server_config(creds, protocol_hosts=None, warp_mode="proxy", enabled_p
         "outbound": outbound_tag,
     })
 
-    return {
+    ob_result = build_server_outbounds(warp_mode, wg_params=wg_params, mtu=mtu)
+    config = {
         "log": {"disabled": True},
         "dns": {
             "servers": [
@@ -483,13 +486,16 @@ def build_server_config(creds, protocol_hosts=None, warp_mode="proxy", enabled_p
             ],
         },
         "inbounds": inbounds,
-        "outbounds": build_server_outbounds(warp_mode, wg_params=wg_params, mtu=mtu),
+        "outbounds": ob_result["outbounds"],
         "route": {
             "rules": rules,
             "final": outbound_tag,
             "default_domain_resolver": SERVER_DNS_TAG,
         },
     }
+    if ob_result.get("endpoints"):
+        config["endpoints"] = ob_result["endpoints"]
+    return config
 
 
 def build_client_config(creds, protocol_hosts=None, enabled_protocols=None, server_ip=None, fingerprint_opts=None):
