@@ -45,20 +45,37 @@ class TestWireGuardMode(unittest.TestCase):
     def setUp(self):
         self.orig_env = os.environ.get("WARP_MODE")
         self.orig_wg_config = os.environ.get("WG_CONFIG")
+        self.orig_wg_configs = os.environ.get("WG_CONFIGS")
+        self.orig_wg_config_file = os.environ.get("WG_CONFIG_FILE")
         if "WARP_MODE" in os.environ:
             del os.environ["WARP_MODE"]
         if "WG_CONFIG" in os.environ:
             del os.environ["WG_CONFIG"]
+        if "WG_CONFIGS" in os.environ:
+            del os.environ["WG_CONFIGS"]
+        if "WG_CONFIG_FILE" in os.environ:
+            del os.environ["WG_CONFIG_FILE"]
 
     def tearDown(self):
         if self.orig_env is not None:
             os.environ["WARP_MODE"] = self.orig_env
         elif "WARP_MODE" in os.environ:
             del os.environ["WARP_MODE"]
+            
         if self.orig_wg_config is not None:
             os.environ["WG_CONFIG"] = self.orig_wg_config
         elif "WG_CONFIG" in os.environ:
             del os.environ["WG_CONFIG"]
+            
+        if self.orig_wg_configs is not None:
+            os.environ["WG_CONFIGS"] = self.orig_wg_configs
+        elif "WG_CONFIGS" in os.environ:
+            del os.environ["WG_CONFIGS"]
+            
+        if self.orig_wg_config_file is not None:
+            os.environ["WG_CONFIG_FILE"] = self.orig_wg_config_file
+        elif "WG_CONFIG_FILE" in os.environ:
+            del os.environ["WG_CONFIG_FILE"]
 
     def test_parse_wg_config_valid(self):
         params = parse_wg_config(VALID_WG_CONFIG)
@@ -220,3 +237,83 @@ Endpoint = 2.2.2.2:51820
         os.environ["WG_MTU"] = "1360"
         outbound_env = build_singbox_wg_outbound(params, mtu=1420)
         self.assertEqual(outbound_env["mtu"], 1360)
+
+    def test_build_server_outbounds_single_wg(self):
+        params = parse_wg_config(VALID_WG_CONFIG)
+        outbounds = build_server_outbounds("wireguard", wg_params=params)
+        self.assertEqual(len(outbounds), 2)
+        self.assertEqual(outbounds[0]["type"], "wireguard")
+        self.assertEqual(outbounds[0]["tag"], "warp-out")
+        self.assertEqual(outbounds[1]["type"], "direct")
+
+    def test_build_server_outbounds_multi_wg(self):
+        p1 = parse_wg_config(VALID_WG_CONFIG)
+        p2 = parse_wg_config(VALID_WG_CONFIG_WITH_PRESHARED)
+        outbounds = build_server_outbounds("wireguard", wg_params=[p1, p2])
+        self.assertEqual(len(outbounds), 4) # urltest + wg0 + wg1 + direct
+        self.assertEqual(outbounds[0]["type"], "urltest")
+        self.assertEqual(outbounds[0]["tag"], "warp-out")
+        self.assertEqual(outbounds[0]["outbounds"], ["wg-out-0", "wg-out-1"])
+        self.assertEqual(outbounds[1]["type"], "wireguard")
+        self.assertEqual(outbounds[1]["tag"], "wg-out-0")
+        self.assertEqual(outbounds[2]["type"], "wireguard")
+        self.assertEqual(outbounds[2]["tag"], "wg-out-1")
+        self.assertEqual(outbounds[3]["type"], "direct")
+
+    def test_build_server_outbounds_wg_backcompat_dict(self):
+        p = parse_wg_config(VALID_WG_CONFIG)
+        # Verify single dict works perfectly (backwards compatible)
+        outbounds = build_server_outbounds("wireguard", wg_params=p)
+        self.assertEqual(len(outbounds), 2)
+        self.assertEqual(outbounds[0]["type"], "wireguard")
+
+    def test_read_wg_configs_interactive_env(self):
+        from automated_sing_box_generator.wireguard import read_wg_configs_interactive
+        os.environ["WG_CONFIG"] = VALID_WG_CONFIG
+        configs = read_wg_configs_interactive()
+        self.assertEqual(len(configs), 1)
+        self.assertEqual(configs[0], VALID_WG_CONFIG.strip())
+
+    def test_read_wg_configs_interactive_env_wg_configs(self):
+        from automated_sing_box_generator.wireguard import read_wg_configs_interactive
+        os.environ["WG_CONFIGS"] = f"{VALID_WG_CONFIG}\n---\n{VALID_WG_CONFIG_WITH_PRESHARED}"
+        configs = read_wg_configs_interactive()
+        self.assertEqual(len(configs), 2)
+        self.assertEqual(configs[0], VALID_WG_CONFIG.strip())
+        self.assertEqual(configs[1], VALID_WG_CONFIG_WITH_PRESHARED.strip())
+
+    def test_cli_deploy_wg_config_multi(self):
+        parser = build_parser()
+        args = parser.parse_args(["deploy", "--warp-mode", "wireguard", "--wg-config", "dummy_conf1", "dummy_conf2"])
+        with patch("automated_sing_box_generator.deploy.main") as mock_main:
+            mock_main.return_value = 0
+            with self.assertRaises(SystemExit):
+                cmd_deploy(args)
+            self.assertEqual(os.environ.get("WARP_MODE"), "wireguard")
+            self.assertEqual(os.environ.get("WG_CONFIGS"), "dummy_conf1\n---\ndummy_conf2")
+
+    def test_show_status_wireguard_multi(self):
+        from automated_sing_box_generator.deploy import show_status
+        p1 = parse_wg_config(VALID_WG_CONFIG)
+        p2 = parse_wg_config(VALID_WG_CONFIG_WITH_PRESHARED)
+        state_data = {
+            "domain_root": "example.com",
+            "enabled_protocols": ["anytls"],
+            "active_outbound": "wireguard",
+            "warp_mode": "wireguard",
+            "wg_params": [p1, p2],
+            "server_ip": "1.2.3.4",
+            "deployed_at": "2026-08-11"
+        }
+        with patch("automated_sing_box_generator.state.load_state", return_value=state_data), \
+             patch("automated_sing_box_generator.ui.kv") as mock_kv:
+            show_status()
+            mock_kv.assert_any_call("WireGuard 端点", "185.200.118.4:51820, 185.200.118.4:51820")
+
+    def test_manage_outbound_add_wireguard_multi_wg_config(self):
+        from automated_sing_box_generator.cli import cmd_outbound
+        parser = build_parser()
+        args = parser.parse_args(["manage", "outbound", "add", "wireguard", "--wg-config", "dummy_conf1", "dummy_conf2"])
+        with patch("automated_sing_box_generator.outbound.add_outbound_profile") as mock_add:
+            cmd_outbound(args)
+            mock_add.assert_called_with("wireguard", wg_content="dummy_conf1\n---\ndummy_conf2")

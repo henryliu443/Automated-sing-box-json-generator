@@ -270,10 +270,11 @@ def deploy(domain_root=None, enabled_protocols=None, fingerprint_overrides=None)
     # WireGuard 配置获取
     wg_params = None
     if preferred_warp_mode == "wireguard":
-        from .wireguard import read_wg_config_interactive, parse_wg_config
-        raw_content = read_wg_config_interactive()
-        wg_params = parse_wg_config(raw_content)
-        ui.success(f"WireGuard 配置已解析: {wg_params['endpoint_host']}:{wg_params['endpoint_port']}")
+        from .wireguard import read_wg_configs_interactive, parse_wg_config
+        configs = read_wg_configs_interactive()
+        wg_params = [parse_wg_config(c) for c in configs]
+        endpoints = ", ".join(f"{p['endpoint_host']}:{p['endpoint_port']}" for p in wg_params)
+        ui.success(f"已加载 {len(wg_params)} 个 WireGuard 端点: {endpoints}")
 
     # CF credentials are always required (DNS record management + optional TLS)
     cf_token, cf_zone_id = resolve_cf_dns_credentials()
@@ -552,9 +553,13 @@ def show_status():
         ui.kv("协议", ", ".join(loaded.get("enabled_protocols", [])))
         active = loaded.get("active_outbound", warp_mode)
         if active == "wireguard":
-            wg_p = loaded.get("wg_params", {}) or {}
+            wg_p = loaded.get("wg_params")
             ui.kv("WARP 模式", "wireguard")
-            ui.kv("WireGuard 端点", f"{wg_p.get('endpoint_host')}:{wg_p.get('endpoint_port')}")
+            if isinstance(wg_p, list):
+                endpoints = [f"{p['endpoint_host']}:{p['endpoint_port']}" for p in wg_p]
+                ui.kv("WireGuard 端点", ", ".join(endpoints))
+            elif isinstance(wg_p, dict):
+                ui.kv("WireGuard 端点", f"{wg_p.get('endpoint_host')}:{wg_p.get('endpoint_port')}")
         elif active == "none":
             ui.kv("WARP 模式", "direct (无 WARP)")
         else:

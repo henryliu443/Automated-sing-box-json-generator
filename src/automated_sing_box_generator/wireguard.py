@@ -94,7 +94,7 @@ def parse_wg_config(content: str) -> dict:
     first_peer = parsed_peers[0]
     
     if len(parsed_peers) > 1:
-        ui.warning(f"检测到多个 [Peer] 配置 (共 {len(parsed_peers)} 个)，本工具将生成多 Peer 出站")
+        ui.warning(f"检测到单个配置文件中有多个 [Peer] 配置 (共 {len(parsed_peers)} 个)，本工具将生成多 Peer 出站")
 
     return {
         "private_key": private_key,
@@ -110,38 +110,85 @@ def parse_wg_config(content: str) -> dict:
         "peers": parsed_peers,
     }
 
-def read_wg_config_interactive() -> str:
-    """交互式读取 WireGuard 配置，支持环境变量。"""
+def read_single_config_interactive(prompt_text: str) -> str:
+    """在终端交互式读取单份配置（使用 input 循环，Ctrl+D 结束）。"""
+    print(prompt_text, flush=True)
+    lines = []
+    while True:
+        try:
+            line = input()
+            lines.append(line)
+        except EOFError:
+            break
+        except KeyboardInterrupt:
+            print()
+            raise RuntimeError("用户取消了交互式输入")
+    return "\n".join(lines).strip()
+
+def read_wg_configs_interactive() -> list[str]:
+    """交互式读取多个独立的 WireGuard 配置文件。"""
+    env_configs = os.environ.get("WG_CONFIGS")
+    if env_configs and env_configs.strip():
+        ui.info("使用环境变量 WG_CONFIGS 中的多端点配置")
+        return [c.strip() for c in env_configs.split("\n---\n") if c.strip()]
+        
     env_content = os.environ.get("WG_CONFIG")
     if env_content and env_content.strip():
-        ui.info("使用环境变量 WG_CONFIG 中的配置")
-        return env_content.strip()
+        ui.info("使用环境变量 WG_CONFIG 中的单端点配置")
+        return [env_content.strip()]
 
     env_file = os.environ.get("WG_CONFIG_FILE")
     if env_file and env_file.strip():
         if os.path.exists(env_file):
-            ui.info(f"使用环境变量 WG_CONFIG_FILE 指定的文件: {env_file}")
+            ui.info(f"使用环境变量 WG_CONFIG_FILE 指定的单端点文件: {env_file}")
             with open(env_file, 'r', encoding='utf-8') as f:
-                return f.read().strip()
+                return [f.read().strip()]
         else:
             ui.warning(f"WG_CONFIG_FILE 路径不存在: {env_file}")
 
     ui.section("WireGuard 配置")
-    print("请粘贴 WireGuard 配置内容 (输入完毕后按 Ctrl+D 结束):", flush=True)
+    count_str = ui.prompt("你有几个配置文件？(默认 1)").strip()
+    if not count_str or not count_str.isdigit():
+        if count_str:
+            ui.warning("无效的数量，将默认读取 1 个配置文件")
+        count = 1
+    else:
+        count = int(count_str)
+        if count < 1:
+            ui.warning("数量必须大于等于 1，将默认读取 1 个配置文件")
+            count = 1
+            
+    configs = []
+    for i in range(count):
+        prompt_text = f"请粘贴第 {i+1}/{count} 个配置文件 (输入完毕后按 Ctrl+D 结束):"
+        content = read_single_config_interactive(prompt_text)
+        if not content:
+            raise RuntimeError("配置内容不能为空")
+        configs.append(content)
+        
+        # 实时解析并展示，以便用户确认
+        try:
+            params = parse_wg_config(content)
+            ui.success(f"✓ 第 {i+1} 个配置解析成功 (端点: {params['endpoint_host']}:{params['endpoint_port']})")
+        except Exception as e:
+            ui.warning(f"第 {i+1} 个配置解析失败: {e}")
 
-    try:
-        content = sys.stdin.read()
-    except KeyboardInterrupt:
-        print()
-        raise RuntimeError("用户取消了交互式输入")
+    return configs
 
-    if not content.strip():
-        raise RuntimeError("WireGuard 配置内容不能为空")
-
-    return content.strip()
+def read_wg_config_interactive() -> str:
+    """交互式读取单个 WireGuard 配置。"""
+    configs = read_wg_configs_interactive()
+    if not configs:
+        raise RuntimeError("未读取到任何 WireGuard 配置")
+    return configs[0]
 
 def build_singbox_wg_outbound(wg_params: dict, tag: str = "warp-out", allow_ipv6: bool = True, mtu: int = 1280) -> dict:
-    """将解析后的参数转换为 sing-box WireGuard outbound。"""
+    """将解析后的参数转换为 sing-box WireGuard outbound。
+    
+    已知限制：若单个 .conf 文件内存在多个 [Peer] (通常不需要，Proton VPN 无此情况)，
+    生成的 outbound 仍以第一个 Peer 的 Endpoint 作为公共根 server/server_port，
+    此时多 Peer 的 per-peer endpoint 属性不会单独在 peer 对象中输出。
+    """
     # 优先使用新的 peers 列表
     raw_peers = wg_params.get("peers")
     peers = []

@@ -57,11 +57,18 @@ def cmd_deploy(args):
         else:
             warp_mode = args.warp_mode
         os.environ["WARP_MODE"] = warp_mode
-    if getattr(args, "wg_config", None):
-        if os.path.isfile(args.wg_config):
-            os.environ["WG_CONFIG_FILE"] = args.wg_config
-        else:
-            os.environ["WG_CONFIG"] = args.wg_config
+    wg_configs = getattr(args, "wg_config", None)
+    if wg_configs:
+        configs = []
+        for c in wg_configs:
+            if os.path.isfile(c):
+                with open(c, 'r', encoding='utf-8') as f:
+                    configs.append(f.read().strip())
+            else:
+                configs.append(c.strip())
+        os.environ["WG_CONFIGS"] = "\n---\n".join(configs)
+        if len(configs) == 1:
+            os.environ["WG_CONFIG"] = configs[0]
     fingerprint_overrides = {}
     if args.reality_server:
         fingerprint_overrides[cfg.REALITY_SERVER_ENV] = args.reality_server
@@ -90,15 +97,16 @@ def cmd_outbound(args):
     elif args.outbound_cmd == "add":
         wg_content = None
         if args.outbound_type == "wireguard":
-            if getattr(args, "wg_config", None):
-                if os.path.isfile(args.wg_config):
-                    with open(args.wg_config, 'r', encoding='utf-8') as f:
-                        wg_content = f.read().strip()
-                else:
-                    wg_content = args.wg_config.strip()
-            else:
-                from .wireguard import read_wg_config_interactive
-                wg_content = read_wg_config_interactive()
+            wg_configs = getattr(args, "wg_config", None)
+            if wg_configs:
+                configs = []
+                for c in wg_configs:
+                    if os.path.isfile(c):
+                        with open(c, 'r', encoding='utf-8') as f:
+                            configs.append(f.read().strip())
+                    else:
+                        configs.append(c.strip())
+                wg_content = "\n---\n".join(configs)
         ob.add_outbound_profile(args.outbound_type, wg_content=wg_content)
     else:
         ob.show_outbound_status()
@@ -264,7 +272,7 @@ def build_parser():
     p_deploy.add_argument("--domain", type=str, default=None, help="主域名")
     p_deploy.add_argument("--warp-mode", choices=["proxy", "tun", "direct", "none", "wireguard", "wg"], default=None,
                           help="出站模式 (proxy, tun, direct, none, wireguard)")
-    p_deploy.add_argument("--wg-config", type=str, default=None, help="WireGuard 配置内容或文件路径")
+    p_deploy.add_argument("--wg-config", nargs="*", default=None, help="WireGuard 配置内容或文件路径 (可多个)")
     p_deploy.add_argument("--reality-server", type=str, default=None, help="Reality 伪装域名")
     p_deploy.add_argument("--reality-port", type=int, default=None, help="Reality 伪装端口")
     p_deploy.add_argument("--hy2-masquerade", type=str, default=None, help="Hysteria2 masquerade URL")
@@ -326,7 +334,7 @@ def build_parser():
 
     p_ob_add = outbound_sub.add_parser("add", help="添加 / 更新出口 profile")
     p_ob_add.add_argument("outbound_type", choices=["warp", "wireguard"])
-    p_ob_add.add_argument("--wg-config", type=str, default=None, help="WireGuard 配置内容或文件路径")
+    p_ob_add.add_argument("--wg-config", nargs="*", default=None, help="WireGuard 配置内容或文件路径 (可多个)")
 
     p_uninstall = sub.add_parser("uninstall", help="完整卸载工具部署的所有组件")
     p_uninstall.add_argument("--remove-warp", action="store_true", help="同时卸载 WARP (cloudflare-warp 软件包)")

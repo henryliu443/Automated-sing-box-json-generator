@@ -179,9 +179,31 @@ def build_server_outbounds(warp_mode, wg_params=None, mtu=1280):
     if warp_mode == "wireguard":
         if not wg_params:
             raise ValueError("wireguard mode requires wg_params")
+        wg_list = wg_params if isinstance(wg_params, list) else [wg_params]
         from .wireguard import build_singbox_wg_outbound
+
+        if len(wg_list) == 1:
+            return [
+                build_singbox_wg_outbound(wg_list[0], tag="warp-out", allow_ipv6=False, mtu=mtu),
+                {"type": "direct", "tag": "direct"},
+            ]
+
+        tags = [f"wg-out-{i}" for i in range(len(wg_list))]
+        wg_outbounds = [
+            build_singbox_wg_outbound(p, tag=t, allow_ipv6=False, mtu=mtu)
+            for p, t in zip(wg_list, tags)
+        ]
         return [
-            build_singbox_wg_outbound(wg_params, tag="warp-out", allow_ipv6=False, mtu=mtu),
+            {
+                "type": "urltest",
+                "tag": "warp-out",
+                "outbounds": tags,
+                "url": "https://cp.cloudflare.com/generate_204",
+                "interval": "5m",
+                "tolerance": 100,
+                "interrupt_exist_connections": True,
+            },
+            *wg_outbounds,
             {"type": "direct", "tag": "direct"},
         ]
 

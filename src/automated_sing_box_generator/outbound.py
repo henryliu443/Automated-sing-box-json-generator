@@ -210,12 +210,18 @@ def add_outbound_profile(outbound_type: str, wg_content: str = None):
     opts = loaded.get("anti_detection")
 
     if outbound_type == "wireguard":
-        if not wg_content:
+        from .wireguard import read_wg_configs_interactive, parse_wg_config
+        if wg_content:
+            configs = [c.strip() for c in wg_content.split("\n---\n") if c.strip()]
+        else:
+            configs = read_wg_configs_interactive()
+
+        if not configs:
             ui.error("WireGuard 配置不能为空")
             return
-        from .wireguard import parse_wg_config
+
         try:
-            wg_params = parse_wg_config(wg_content)
+            wg_params = [parse_wg_config(c) for c in configs]
         except Exception as e:
             ui.error(f"解析 WireGuard 配置失败: {e}")
             return
