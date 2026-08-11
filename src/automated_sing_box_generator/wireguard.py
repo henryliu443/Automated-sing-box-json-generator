@@ -169,18 +169,21 @@ def read_wg_configs_interactive() -> list[str]:
             
     configs = []
     for i in range(count):
-        prompt_text = f"请粘贴第 {i+1}/{count} 个配置文件 (粘贴完成后按回车结束):"
-        content = read_single_config_interactive(prompt_text)
-        if not content:
-            raise RuntimeError("配置内容不能为空")
-        configs.append(content)
-        
-        # 实时解析并展示，以便用户确认
-        try:
-            params = parse_wg_config(content)
-            ui.success(f"✓ 第 {i+1} 个配置解析成功 (端点: {params['endpoint_host']}:{params['endpoint_port']})")
-        except Exception as e:
-            ui.warning(f"第 {i+1} 个配置解析失败: {e}")
+        while True:
+            prompt_text = f"请粘贴第 {i+1}/{count} 个配置文件 (粘贴完成后按回车结束):"
+            content = read_single_config_interactive(prompt_text)
+            if not content:
+                raise RuntimeError("配置内容不能为空")
+            try:
+                params = parse_wg_config(content)
+                ui.success(f"✓ 第 {i+1} 个配置解析成功 (端点: {params['endpoint_host']}:{params['endpoint_port']})")
+                configs.append(content)
+                break
+            except Exception as e:
+                ui.warning(f"第 {i+1} 个配置解析失败: {e}")
+                retry = ui.prompt(f"第 {i+1} 个配置解析失败，是否重新粘贴？(Y/n)").strip().lower()
+                if retry in ("n", "no"):
+                    raise RuntimeError(f"第 {i+1} 个配置解析失败且用户选择跳过") from e
 
     return configs
 
