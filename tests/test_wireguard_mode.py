@@ -100,11 +100,13 @@ class TestWireGuardMode(unittest.TestCase):
         outbound = build_singbox_wg_outbound(params, tag="custom-wg")
         self.assertEqual(outbound["type"], "wireguard")
         self.assertEqual(outbound["tag"], "custom-wg")
-        self.assertEqual(outbound["server"], "185.200.118.4")
-        self.assertEqual(outbound["server_port"], 51820)
+        self.assertNotIn("server", outbound)
+        self.assertNotIn("server_port", outbound)
         self.assertEqual(outbound["private_key"], "privatekeybase64=")
         self.assertEqual(outbound["peers"][0]["public_key"], "peerpublickeybase64=")
         self.assertEqual(outbound["peers"][0]["pre_shared_key"], "presharedkeybase64=")
+        self.assertEqual(outbound["peers"][0]["endpoint"], "185.200.118.4")
+        self.assertEqual(outbound["peers"][0]["endpoint_port"], 51820)
 
     def test_build_server_outbounds_wireguard(self):
         params = parse_wg_config(VALID_WG_CONFIG)
