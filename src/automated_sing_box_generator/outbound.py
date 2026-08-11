@@ -1,5 +1,7 @@
+from __future__ import annotations
 import os
 import subprocess
+from typing import Optional
 from . import ui
 from . import state as state_mod
 
@@ -34,7 +36,7 @@ def list_available_profiles() -> dict[str, bool]:
     """检查每个 profile 文件是否存在，返回 {name: exists}。"""
     return {name: os.path.exists(path) for name, path in PROFILE_MAP.items()}
 
-def get_active_profile() -> str | None:
+def get_active_profile() -> Optional[str]:
     """读取 config.json symlink 指向，匹配到 profile name。"""
     if not os.path.islink(SING_BOX_CONFIG_PATH):
         return None
