@@ -194,9 +194,8 @@ def read_wg_config_interactive() -> str:
         raise RuntimeError("未读取到任何 WireGuard 配置")
     return configs[0]
 
-def build_singbox_wg_outbound(wg_params: dict, tag: str = "warp-out", allow_ipv6: bool = True, mtu: int = 1280) -> tuple[dict, dict]:
-    """返回 (outbound, endpoint) — sing-box 1.11+ 分离了 endpoint 与 outbound。"""
-    ep_tag = f"{tag}-ep"
+def build_singbox_wg_outbound(wg_params: dict, tag: str = "warp-out", allow_ipv6: bool = True, mtu: int = 1280) -> dict:
+    """返回内联 outbound — sing-box 1.12+ 只支持内联字段，不使用 endpoint 引用。"""
     raw_peers = wg_params.get("peers")
     peers = []
 
@@ -231,19 +230,13 @@ def build_singbox_wg_outbound(wg_params: dict, tag: str = "warp-out", allow_ipv6
     env_mtu = os.environ.get("WG_MTU")
     final_mtu = int(env_mtu) if env_mtu else mtu
 
-    endpoint = {
+    outbound = {
         "type": "wireguard",
-        "tag": ep_tag,
+        "tag": tag,
         "address": wg_params["address"],
         "private_key": wg_params["private_key"],
         "peers": peers,
         "mtu": final_mtu,
     }
 
-    outbound = {
-        "type": "wireguard",
-        "tag": tag,
-        "endpoint": ep_tag,
-    }
-
-    return outbound, endpoint
+    return outbound
