@@ -710,6 +710,10 @@ def ensure_warp(preferred_mode=None):
         ui.info("WARP 模式为 direct (none)，跳过 WARP 安装与检查")
         return "none"
 
+    if preferred_mode == "wireguard":
+        ui.info("WireGuard 模式：sing-box 内置 WireGuard，无需额外安装或检查")
+        return "wireguard"
+
     if preferred_mode not in (None, "proxy", "tun"):
         raise RuntimeError(f"不支持的 WARP 模式: {preferred_mode}")
 

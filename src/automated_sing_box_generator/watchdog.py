@@ -30,7 +30,7 @@ check_warp_data_plane() {
 
 
 def build_watchdog_script(warp_mode="proxy"):
-    if warp_mode == "none":
+    if warp_mode in ("none", "wireguard"):
         return None
     if warp_mode == "proxy":
         check_block = _WARP_CHECK_PROXY
@@ -46,7 +46,7 @@ def build_watchdog_script(warp_mode="proxy"):
 
 
 def deploy_watchdog(script_path="/root/warp_lazy_watchdog.sh", warp_mode="proxy"):
-    if warp_mode == "none":
+    if warp_mode in ("none", "wireguard"):
         return
     script_content = build_watchdog_script(warp_mode)
     if script_content is None:

@@ -45,6 +45,12 @@ def run_doctor():
     
     issues_found = 0
 
+    from . import state as state_mod
+    loaded = state_mod.load_state()
+    warp_mode = loaded.get("warp_mode", "proxy") if loaded else "proxy"
+    active_outbound = loaded.get("active_outbound", warp_mode) if loaded else warp_mode
+    is_warp_required = (warp_mode in ("proxy", "tun")) if loaded else True
+
     ui.section("1. Dependencies & Commands")
     
     # Check sing-box
@@ -56,11 +62,14 @@ def run_doctor():
         issues_found += 1
 
     # Check warp-cli
-    if command_exists("warp-cli"):
-        ui.success("warp-cli: Installed")
+    if is_warp_required:
+        if command_exists("warp-cli"):
+            ui.success("warp-cli: Installed")
+        else:
+            ui.error("warp-cli: Not found")
+            issues_found += 1
     else:
-        ui.error("warp-cli: Not found")
-        issues_found += 1
+        ui.info("warp-cli: Optional (skipped in wireguard/none mode)")
 
     # Check iproute2 (ss)
     if command_exists("ss"):
@@ -79,22 +88,35 @@ def run_doctor():
         issues_found += 1
 
     # Check warp-svc service
-    if _check_systemd_service("warp-svc"):
-        ui.success("Service 'warp-svc': Active")
+    if is_warp_required:
+        if _check_systemd_service("warp-svc"):
+            ui.success("Service 'warp-svc': Active")
+        else:
+            ui.error("Service 'warp-svc': Inactive or failed")
+            issues_found += 1
     else:
-        ui.error("Service 'warp-svc': Inactive or failed")
-        issues_found += 1
+        ui.info("Service 'warp-svc': Optional (skipped in wireguard/none mode)")
 
     ui.section("3. Network & Configs")
 
-    # WARP state
-    if warp_proxy_ready():
-        ui.success("WARP State: Proxy Mode Ready")
-    elif warp_tunnel_ready():
-        ui.success("WARP State: TUN Mode Ready")
+    # Outbound status check
+    if active_outbound == "wireguard":
+        ui.success("Outbound mode: WireGuard (sing-box native)")
+        if os.path.isfile("/etc/sing-box/profiles/config.wireguard.json"):
+            ui.success("WireGuard profile config: config.wireguard.json exists")
+        else:
+            ui.error("WireGuard profile config: config.wireguard.json missing")
+            issues_found += 1
+    elif active_outbound == "none":
+        ui.success("Outbound mode: Direct (no tunnel)")
     else:
-        ui.warning("WARP State: Not Ready / Unreachable")
-        issues_found += 1
+        if warp_proxy_ready():
+            ui.success("WARP State: Proxy Mode Ready")
+        elif warp_tunnel_ready():
+            ui.success("WARP State: TUN Mode Ready")
+        else:
+            ui.warning("WARP State: Not Ready / Unreachable")
+            issues_found += 1
 
     # DNS configuration
     dns_status = _check_system_dns()
