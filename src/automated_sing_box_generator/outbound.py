@@ -3,6 +3,26 @@ import subprocess
 from . import ui
 from . import state as state_mod
 
+def check_dns_resolvable(host: str, timeout: float = 3.0) -> bool:
+    """检查指定的 Host 能否在 timeout 内成功解析 DNS。"""
+    import socket
+    import concurrent.futures
+
+    for family in (socket.AF_INET, socket.AF_INET6):
+        try:
+            socket.inet_pton(family, host)
+            return True
+        except socket.error:
+            pass
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(socket.getaddrinfo, host, None)
+        try:
+            future.result(timeout=timeout)
+            return True
+        except (concurrent.futures.TimeoutError, socket.gaierror):
+            return False
+
 SING_BOX_CONFIG_PATH = "/etc/sing-box/config.json"
 PROFILE_MAP = {
     "warp":      "/etc/sing-box/profiles/config.warp.json",
@@ -66,6 +86,23 @@ def switch_outbound(target: str):
     if not os.path.exists(profile_path):
         ui.error(f"出口 profile 不存在: {profile_path}。请先添加该出口。")
         return
+
+    # 前置依赖检查
+    if target == "warp":
+        from .installer import warp_proxy_ready, warp_tunnel_ready
+        if not (warp_proxy_ready() or warp_tunnel_ready()):
+            ui.error("WARP 服务未就绪/未运行！请先运行 'automated-sing-box-generator manage outbound add warp'。")
+            return
+    elif target == "wireguard":
+        loaded = state_mod.load_state()
+        endpoint_host = None
+        if loaded and loaded.get("wg_params"):
+            endpoint_host = loaded["wg_params"].get("endpoint_host")
+        if endpoint_host:
+            ui.step(f"校验 WireGuard 终点 DNS 解析: {endpoint_host}")
+            if not check_dns_resolvable(endpoint_host, timeout=3.0):
+                ui.error(f"无法解析 WireGuard 终点 DNS: {endpoint_host}，切换已终止。请检查网络连接。")
+                return
 
     # 读取旧的 symlink，以便在校验失败时回滚
     old_target = None

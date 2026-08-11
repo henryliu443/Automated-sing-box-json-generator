@@ -152,7 +152,7 @@ def build_protocol_hosts(domain_root, prefixes):
     return {key: f"{prefix}.{root}" for key, prefix in prefixes.items()}
 
 
-def build_server_outbounds(warp_mode, wg_params=None):
+def build_server_outbounds(warp_mode, wg_params=None, mtu=1280):
     if warp_mode == "proxy":
         return [
             {
@@ -181,7 +181,7 @@ def build_server_outbounds(warp_mode, wg_params=None):
             raise ValueError("wireguard mode requires wg_params")
         from .wireguard import build_singbox_wg_outbound
         return [
-            build_singbox_wg_outbound(wg_params, tag="warp-out"),
+            build_singbox_wg_outbound(wg_params, tag="warp-out", allow_ipv6=False, mtu=mtu),
             {"type": "direct", "tag": "direct"},
         ]
 
@@ -412,7 +412,7 @@ def build_client_outbounds(creds, hosts, enabled_protocols=None, fingerprint_opt
     return result
 
 
-def build_server_config(creds, protocol_hosts=None, warp_mode="proxy", enabled_protocols=None, fingerprint_opts=None, wg_params=None):
+def build_server_config(creds, protocol_hosts=None, warp_mode="proxy", enabled_protocols=None, fingerprint_opts=None, wg_params=None, mtu=1280):
     if not protocol_hosts:
         raise ValueError("protocol_hosts is required")
     if enabled_protocols is None:
@@ -461,7 +461,7 @@ def build_server_config(creds, protocol_hosts=None, warp_mode="proxy", enabled_p
             ],
         },
         "inbounds": inbounds,
-        "outbounds": build_server_outbounds(warp_mode, wg_params=wg_params),
+        "outbounds": build_server_outbounds(warp_mode, wg_params=wg_params, mtu=mtu),
         "route": {
             "rules": rules,
             "final": outbound_tag,

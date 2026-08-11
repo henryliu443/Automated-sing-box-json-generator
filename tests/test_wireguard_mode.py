@@ -163,3 +163,60 @@ class TestWireGuardMode(unittest.TestCase):
         self.assertEqual(args.manage_cmd, "outbound")
         self.assertEqual(args.outbound_cmd, "switch")
         self.assertEqual(args.target, "wireguard")
+
+    def test_filter_ipv6_allowed_ips(self):
+        params = parse_wg_config(VALID_WG_CONFIG)
+        outbound_v6 = build_singbox_wg_outbound(params, allow_ipv6=True)
+        self.assertIn("::/0", outbound_v6["peers"][0]["allowed_ips"])
+        
+        outbound_no_v6 = build_singbox_wg_outbound(params, allow_ipv6=False)
+        self.assertNotIn("::/0", outbound_no_v6["peers"][0]["allowed_ips"])
+        self.assertEqual(outbound_no_v6["peers"][0]["allowed_ips"], ["0.0.0.0/0"])
+
+    def test_parse_wg_config_multi_peer(self):
+        multi_peer_config = """
+[Interface]
+PrivateKey = privatekeybase64=
+Address = 10.2.0.2/32
+
+[Peer]
+PublicKey = peer1publickey=
+Endpoint = 1.1.1.1:51820
+
+[Peer]
+PublicKey = peer2publickey=
+Endpoint = 2.2.2.2:51820
+"""
+        params = parse_wg_config(multi_peer_config)
+        self.assertEqual(len(params["peers"]), 2)
+        self.assertEqual(params["peers"][0]["public_key"], "peer1publickey=")
+        self.assertEqual(params["peers"][1]["public_key"], "peer2publickey=")
+        self.assertEqual(params["peers"][0]["endpoint_host"], "1.1.1.1")
+        self.assertEqual(params["peers"][1]["endpoint_host"], "2.2.2.2")
+
+    def test_switch_outbound_warp_unavailable(self):
+        from automated_sing_box_generator.outbound import switch_outbound
+        with patch("os.path.exists", return_value=True), \
+             patch("automated_sing_box_generator.installer.warp_proxy_ready", return_value=False), \
+             patch("automated_sing_box_generator.installer.warp_tunnel_ready", return_value=False), \
+             patch("automated_sing_box_generator.ui.error") as mock_error:
+            switch_outbound("warp")
+            mock_error.assert_called_with("WARP 服务未就绪/未运行！请先运行 'automated-sing-box-generator manage outbound add warp'。")
+
+    def test_switch_outbound_wg_endpoint_unreachable(self):
+        from automated_sing_box_generator.outbound import switch_outbound
+        with patch("os.path.exists", return_value=True), \
+             patch("automated_sing_box_generator.state.load_state", return_value={"wg_params": {"endpoint_host": "invalid-host-dns-fail.test"}}), \
+             patch("automated_sing_box_generator.outbound.check_dns_resolvable", return_value=False), \
+             patch("automated_sing_box_generator.ui.error") as mock_error:
+            switch_outbound("wireguard")
+            mock_error.assert_called_with("无法解析 WireGuard 终点 DNS: invalid-host-dns-fail.test，切换已终止。请检查网络连接。")
+
+    def test_build_singbox_wg_outbound_custom_mtu(self):
+        params = parse_wg_config(VALID_WG_CONFIG)
+        outbound = build_singbox_wg_outbound(params, mtu=1420)
+        self.assertEqual(outbound["mtu"], 1420)
+        
+        os.environ["WG_MTU"] = "1360"
+        outbound_env = build_singbox_wg_outbound(params, mtu=1420)
+        self.assertEqual(outbound_env["mtu"], 1360)
