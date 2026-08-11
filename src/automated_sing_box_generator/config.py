@@ -398,7 +398,7 @@ def build_client_outbounds(creds, hosts, enabled_protocols=None, fingerprint_opt
         result.append(_CLIENT_OUTBOUND_BUILDERS[proto](creds, hosts, fingerprint_opts))
 
     result.append({"type": "direct", "tag": CLIENT_ROUTE_TAG})
-    result.append({"type": "direct", "tag": "direct", "domain_strategy": "prefer_ipv4"})
+    result.append({"type": "direct", "tag": "direct", "domain_resolver": build_domain_resolver()})
     result.append({"type": "block", "tag": "block"})
     return result
 
